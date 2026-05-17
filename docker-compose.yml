@@ -2,6 +2,7 @@ services:
   ocs-ai-answer:
     build: .
     container_name: ocs-ai-answer
+    network_mode: "bridge"
     ports:
       - "3000:3000"
     volumes:
