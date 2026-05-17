@@ -140,7 +140,7 @@ function callAI(question, type, options) {
               ? parsed.choices[0].message.content.trim()
               : null;
 
-          console.log(`AI 回复：\n${answer}`);
+          console.log(`AI 回复：${answer}`);
 
           const usage = parsed.usage || {};
           const promptTokens = usage.prompt_tokens || 0;
@@ -148,7 +148,7 @@ function callAI(question, type, options) {
           const totalTokens = usage.total_tokens || 0;
           const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
           console.log(`输入 Token：${promptTokens} | 输出 Token：${completionTokens} | 总 Token 数：${totalTokens} | 耗时：${timeElapsed} 秒`);
-          console.log(`——————`);
+          console.log(`========================================`);
 
           resolve(answer);
         } catch (e) {
