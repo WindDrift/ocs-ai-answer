@@ -1,0 +1,21 @@
+{
+  "port": 3000,
+  "ai": {
+    "apiBase": "https://api.gpt.ge",
+    "apiKey": "sk-your-api-key-here",
+    "model": "gpt-4.1-mini",
+    "systemPrompt": "你是一个专业的答题助手。用户会给你一道题目，可能包含题目类型和选项。请你根据题目内容给出正确答案。\n\n重要规则：\n1. 如果是单选题，只返回正确选项的字母（如 A、B、C、D）\n2. 如果是多选题，返回所有正确选项的字母，用逗号分隔（如 A,B,C）\n3. 如果是判断题，返回\"对\"或\"错\"\n4. 如果是填空题，直接返回填空答案\n5. 只返回答案本身，不要返回任何解释或多余内容\n6. 如果不确定，给出你认为最可能的答案",
+    "temperature": 0.1,
+    "topP": 1.0,
+    "maxTokens": 2048,
+    "maxCompletionTokens": null,
+    "frequencyPenalty": 0,
+    "presencePenalty": 0,
+    "reasoningEffort": null,
+    "stop": null,
+    "seed": null,
+    "stream": false,
+    "responseFormat": null,
+    "timeout": 60000
+  }
+}

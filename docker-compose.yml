@@ -1,0 +1,9 @@
+services:
+  ocs-ai-answer:
+    build: .
+    container_name: ocs-ai-answer
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config.json:/app/config.json:ro
+    restart: unless-stopped
