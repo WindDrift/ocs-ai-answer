@@ -98,6 +98,7 @@ function buildRequestBody(question, type, options) {
 
 function callAI(question, type, options) {
   return new Promise((resolve, reject) => {
+    const startTime = Date.now();
     console.log(`题目：${question}`);
     if (options) {
       console.log(`选项：\n${options}`);
@@ -145,7 +146,8 @@ function callAI(question, type, options) {
           const promptTokens = usage.prompt_tokens || 0;
           const completionTokens = usage.completion_tokens || 0;
           const totalTokens = usage.total_tokens || 0;
-          console.log(`输入 Token：${promptTokens} | 输出 Token：${completionTokens} | 总 Token 数：${totalTokens}`);
+          const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+          console.log(`输入 Token：${promptTokens} | 输出 Token：${completionTokens} | 总 Token 数：${totalTokens} | 耗时：${timeElapsed} 秒`);
           console.log(`——————`);
 
           resolve(answer);
