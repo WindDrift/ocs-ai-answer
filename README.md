@@ -194,12 +194,34 @@ curl http://localhost:3000
 docker compose up -d
 ```
 
+#### 更新服务
+
+如果你通过 Git 获取了代码更新，可以使用以下命令来重新构建并重启服务：
+
+```bash
+# 1. 拉取最新代码
+git pull
+
+# 2. 重新构建并后台启动服务
+docker compose up -d --build
+
+# 3. (可选) 查看实时日志确认启动状态
+docker compose logs -f
+```
+
 ### 使用 1Panel 面板
 
 1. 将项目上传到服务器，如 `/opt/ocs-ai-answer/`
 2. 编辑 `/opt/ocs-ai-answer/config.json`，填入真实 API Key
 3. 登录 1Panel → **容器** → **编排** → **创建编排**
 4. 选择项目路径，1Panel 会自动识别 `docker-compose.yml` 并部署
+
+#### 更新服务
+
+1. **更新代码**：通过 1Panel 的 **主机** → **文件** 功能上传覆盖最新的代码，或者通过终端进入项目目录执行 `git pull` 获取最新代码。
+2. **重建编排**：登录 1Panel 面板 → 点击左侧菜单 **容器** → 选择 **编排**。
+3. 找到你创建的 `ocs-ai-answer` 编排项目，点击操作栏的 **重建**（或者进入该编排的详情页点击“重建”）。
+4. 1Panel 会自动执行重新构建镜像并启动最新容器的过程。
 
 ### 手动 Docker 命令
 

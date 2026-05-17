@@ -98,6 +98,11 @@ function buildRequestBody(question, type, options) {
 
 function callAI(question, type, options) {
   return new Promise((resolve, reject) => {
+    console.log(`题目：${question}`);
+    if (options) {
+      console.log(`选项：\n${options}`);
+    }
+
     const requestBody = buildRequestBody(question, type, options);
 
     const url = new URL("/v1/chat/completions", AI_API_BASE);
@@ -134,10 +139,6 @@ function callAI(question, type, options) {
               ? parsed.choices[0].message.content.trim()
               : null;
 
-          console.log(`题目：${question}`);
-          if (options) {
-            console.log(`选项：\n${options}`);
-          }
           console.log(`AI 回复：\n${answer}`);
 
           const usage = parsed.usage || {};
