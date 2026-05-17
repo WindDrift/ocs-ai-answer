@@ -134,14 +134,18 @@ function callAI(question, type, options) {
               ? parsed.choices[0].message.content.trim()
               : null;
 
+          console.log(`题目：${question}`);
+          if (options) {
+            console.log(`选项：\n${options}`);
+          }
+          console.log(`AI 回复：\n${answer}`);
+
           const usage = parsed.usage || {};
-          const completionTokensDetails = usage.completion_tokens_details || {};
-          if (completionTokensDetails.reasoning_tokens) {
-            console.log(`  推理消耗: ${completionTokensDetails.reasoning_tokens} tokens`);
-          }
-          if (usage.total_tokens) {
-            console.log(`  总消耗: ${usage.total_tokens} tokens`);
-          }
+          const promptTokens = usage.prompt_tokens || 0;
+          const completionTokens = usage.completion_tokens || 0;
+          const totalTokens = usage.total_tokens || 0;
+          console.log(`输入 Token：${promptTokens} | 输出 Token：${completionTokens} | 总 Token 数：${totalTokens}`);
+          console.log(`——————`);
 
           resolve(answer);
         } catch (e) {
