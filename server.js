@@ -10,32 +10,62 @@ if (!fs.existsSync(configPath)) {
   process.exit(1);
 }
 
-const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+let config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
-const PORT = process.env.PORT || config.port || 3000;
+let PORT = process.env.PORT || config.port || 3000;
 
-const ai = config.ai || {};
-const AI_API_BASE = process.env.AI_API_BASE || ai.apiBase;
-const AI_API_KEY = process.env.AI_API_KEY || ai.apiKey;
-const AI_MODEL = process.env.AI_MODEL || ai.model;
-const SYSTEM_PROMPT = ai.systemPrompt;
+let ai = config.ai || {};
+let AI_API_BASE = process.env.AI_API_BASE || ai.apiBase;
+let AI_API_KEY = process.env.AI_API_KEY || ai.apiKey;
+let AI_MODEL = process.env.AI_MODEL || ai.model;
+let SYSTEM_PROMPT = ai.systemPrompt;
 
-const AI_TEMPERATURE = ai.temperature !== undefined ? ai.temperature : 0.1;
-const AI_TOP_P = ai.topP !== undefined ? ai.topP : 1.0;
-const AI_MAX_TOKENS = ai.maxTokens !== undefined ? ai.maxTokens : 2048;
-const AI_MAX_COMPLETION_TOKENS = ai.maxCompletionTokens !== undefined ? ai.maxCompletionTokens : null;
-const AI_FREQUENCY_PENALTY = ai.frequencyPenalty !== undefined ? ai.frequencyPenalty : 0;
-const AI_PRESENCE_PENALTY = ai.presencePenalty !== undefined ? ai.presencePenalty : 0;
-const AI_REASONING_EFFORT = ai.reasoningEffort !== undefined ? ai.reasoningEffort : null;
-const AI_STOP = ai.stop !== undefined ? ai.stop : null;
-const AI_SEED = ai.seed !== undefined ? ai.seed : null;
-const AI_STREAM = ai.stream !== undefined ? ai.stream : false;
-const AI_RESPONSE_FORMAT = ai.responseFormat !== undefined ? ai.responseFormat : null;
-const AI_TIMEOUT = ai.timeout !== undefined ? ai.timeout : 60000;
+let AI_TEMPERATURE = ai.temperature !== undefined ? ai.temperature : 0.1;
+let AI_TOP_P = ai.topP !== undefined ? ai.topP : 1.0;
+let AI_MAX_TOKENS = ai.maxTokens !== undefined ? ai.maxTokens : 2048;
+let AI_MAX_COMPLETION_TOKENS = ai.maxCompletionTokens !== undefined ? ai.maxCompletionTokens : null;
+let AI_FREQUENCY_PENALTY = ai.frequencyPenalty !== undefined ? ai.frequencyPenalty : 0;
+let AI_PRESENCE_PENALTY = ai.presencePenalty !== undefined ? ai.presencePenalty : 0;
+let AI_REASONING_EFFORT = ai.reasoningEffort !== undefined ? ai.reasoningEffort : null;
+let AI_STOP = ai.stop !== undefined ? ai.stop : null;
+let AI_SEED = ai.seed !== undefined ? ai.seed : null;
+let AI_STREAM = ai.stream !== undefined ? ai.stream : false;
+let AI_RESPONSE_FORMAT = ai.responseFormat !== undefined ? ai.responseFormat : null;
+let AI_TIMEOUT = ai.timeout !== undefined ? ai.timeout : 60000;
+
+function reloadConfig(newConfig) {
+  config = newConfig;
+  ai = config.ai || {};
+  AI_API_BASE = process.env.AI_API_BASE || ai.apiBase;
+  AI_API_KEY = process.env.AI_API_KEY || ai.apiKey;
+  AI_MODEL = process.env.AI_MODEL || ai.model;
+  SYSTEM_PROMPT = ai.systemPrompt;
+  AI_TEMPERATURE = ai.temperature !== undefined ? ai.temperature : 0.1;
+  AI_TOP_P = ai.topP !== undefined ? ai.topP : 1.0;
+  AI_MAX_TOKENS = ai.maxTokens !== undefined ? ai.maxTokens : 2048;
+  AI_MAX_COMPLETION_TOKENS = ai.maxCompletionTokens !== undefined ? ai.maxCompletionTokens : null;
+  AI_FREQUENCY_PENALTY = ai.frequencyPenalty !== undefined ? ai.frequencyPenalty : 0;
+  AI_PRESENCE_PENALTY = ai.presencePenalty !== undefined ? ai.presencePenalty : 0;
+  AI_REASONING_EFFORT = ai.reasoningEffort !== undefined ? ai.reasoningEffort : null;
+  AI_STOP = ai.stop !== undefined ? ai.stop : null;
+  AI_SEED = ai.seed !== undefined ? ai.seed : null;
+  AI_STREAM = ai.stream !== undefined ? ai.stream : false;
+  AI_RESPONSE_FORMAT = ai.responseFormat !== undefined ? ai.responseFormat : null;
+  AI_TIMEOUT = ai.timeout !== undefined ? ai.timeout : 60000;
+}
+
+const logs = [];
+function addLog(log) {
+  logs.unshift(log);
+  if (logs.length > 200) {
+    logs.pop();
+  }
+}
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 function buildRequestBody(question, type, options) {
   let userContent = `题目：${question}`;
@@ -129,7 +159,9 @@ function callAI(question, type, options) {
         try {
           const parsed = JSON.parse(data);
           if (parsed.error) {
-            reject(new Error(parsed.error.message || JSON.stringify(parsed.error)));
+            const errorMsg = parsed.error.message || JSON.stringify(parsed.error);
+            addLog({ time: new Date().toISOString(), question, type, options, error: errorMsg });
+            reject(new Error(errorMsg));
             return;
           }
           const answer =
@@ -147,21 +179,41 @@ function callAI(question, type, options) {
           const completionTokens = usage.completion_tokens || 0;
           const totalTokens = usage.total_tokens || 0;
           const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+          
+          addLog({
+            time: new Date().toISOString(),
+            question,
+            type,
+            options,
+            answer,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            timeElapsed
+          });
+
           console.log(`输入 Token：${promptTokens} | 输出 Token：${completionTokens} | 总 Token 数：${totalTokens} | 耗时：${timeElapsed} 秒`);
           console.log(`========================================`);
 
           resolve(answer);
         } catch (e) {
-          reject(new Error(`AI API 响应解析失败: ${data}`));
+          const errorMsg = `AI API 响应解析失败: ${data}`;
+          addLog({ time: new Date().toISOString(), question, type, options, error: errorMsg });
+          reject(new Error(errorMsg));
         }
       });
     });
 
-    req.on("error", (e) => reject(e));
+    req.on("error", (e) => {
+      addLog({ time: new Date().toISOString(), question, type, options, error: e.message });
+      reject(e);
+    });
 
     req.setTimeout(AI_TIMEOUT, () => {
       req.destroy();
-      reject(new Error(`AI API 请求超时 (${AI_TIMEOUT}ms)`));
+      const errorMsg = `AI API 请求超时 (${AI_TIMEOUT}ms)`;
+      addLog({ time: new Date().toISOString(), question, type, options, error: errorMsg });
+      reject(new Error(errorMsg));
     });
 
     req.write(requestBody);
@@ -213,7 +265,7 @@ app.post("/search", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => {
+app.get("/api/status", (req, res) => {
   res.json({
     service: "OCS AI 答题服务",
     status: "running",
@@ -224,11 +276,54 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/api/config", (req, res) => {
+  res.json({ code: 1, data: config });
+});
+
+app.post("/api/config", (req, res) => {
+  try {
+    const newConfig = req.body;
+    fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), "utf-8");
+    reloadConfig(newConfig);
+    res.json({ code: 1, msg: "配置更新成功" });
+  } catch (e) {
+    res.json({ code: 0, msg: "配置更新失败: " + e.message });
+  }
+});
+
+app.get("/api/logs", (req, res) => {
+  res.json({ code: 1, data: logs });
+});
+
+app.get("/api/ocs-config", (req, res) => {
+  const host = req.headers.host;
+  const protocol = req.protocol;
+  const url = `${protocol}://${host}/search`;
+  
+  const ocsConfig = [
+    {
+      "url": url,
+      "name": "AI智能答题",
+      "method": "get",
+      "contentType": "json",
+      "type": "GM_xmlhttpRequest",
+      "data": {
+        "title": "${title}",
+        "type": "${type}",
+        "options": "${options}"
+      },
+      "handler": "return (res) => res.code === 1 ? [res.question, res.answer] : [res.msg, undefined]"
+    }
+  ];
+  res.json({ code: 1, data: ocsConfig });
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`========================================`);
   console.log(`  OCS AI 答题服务已启动`);
   console.log(`  监听地址: http://0.0.0.0:${PORT}`);
   console.log(`  AI API: ${AI_API_BASE}`);
   console.log(`  AI 模型: ${AI_MODEL}`);
+  console.log(`  控制面板: http://localhost:${PORT}/`);
   console.log(`========================================`);
 });

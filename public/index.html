@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCS AI 答题服务控制面板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 600; }
+        .tab-inactive { color: #6b7280; }
+        .tab-inactive:hover { color: #374151; }
+        
+        .dark .tab-active { border-bottom: 2px solid #60a5fa; color: #60a5fa; }
+        .dark .tab-inactive { color: #9ca3af; }
+        .dark .tab-inactive:hover { color: #e5e7eb; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-200">
+    <div id="app" v-cloak class="min-h-screen flex flex-col">
+        <!-- 导航栏 -->
+        <nav class="bg-white dark:bg-gray-800 shadow-sm transition-colors duration-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex">
+                        <div class="flex-shrink-0 flex items-center">
+                            <h1 class="text-xl font-bold text-blue-600 dark:text-blue-400">OCS AI 答题服务</h1>
+                        </div>
+                        <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                            <button @click="currentTab = 'home'" :class="currentTab === 'home' ? 'tab-active' : 'tab-inactive'" class="inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors">概览与配置</button>
+                            <button @click="currentTab = 'settings'" :class="currentTab === 'settings' ? 'tab-active' : 'tab-inactive'" class="inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors">AI 设置</button>
+                            <button @click="currentTab = 'logs'" :class="currentTab === 'logs' ? 'tab-active' : 'tab-inactive'" class="inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors">请求日志</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <button @click="toggleDarkMode" class="p-2 rounded-md text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus:outline-none transition-colors">
+                            <svg v-if="isDarkMode" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            </svg>
+                            <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 max-w-7xl w-full mx-auto py-6 sm:px-6 lg:px-8">
+            <!-- 提示信息 -->
+            <div v-if="toast.show" :class="toast.type === 'success' ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' : 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'" class="mb-4 p-4 border rounded-md shadow-sm transition-all duration-300">
+                {{ toast.message }}
+            </div>
+
+            <!-- 概览与配置 Tab -->
+            <div v-show="currentTab === 'home'" class="space-y-6">
+                <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden transition-colors duration-200">
+                    <div class="px-4 py-5 sm:p-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">OCS 题库配置</h3>
+                        <div class="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
+                            <p>一键复制下方配置，然后在 OCS 网课助手的题库配置页面粘贴即可使用。</p>
+                        </div>
+                        <div class="mt-5">
+                            <div class="relative rounded-md shadow-sm">
+                                <textarea readonly rows="12" class="font-mono text-sm block w-full p-4 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500 transition-colors">{{ ocsConfigStr }}</textarea>
+                                <button @click="copyOcsConfig" class="absolute top-2 right-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    一键复制
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden transition-colors duration-200">
+                    <div class="px-4 py-5 sm:p-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">服务状态</h3>
+                        <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">当前端口</dt>
+                                <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ config.port || 3000 }}</dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">当前模型</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white truncate" :title="config.ai?.model">{{ config.ai?.model || '未知' }}</dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">日志条数</dt>
+                                <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ logs.length }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI 设置 Tab -->
+            <div v-show="currentTab === 'settings'" class="bg-white dark:bg-gray-800 shadow sm:rounded-lg transition-colors duration-200">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">AI 参数设置</h3>
+                    <form @submit.prevent="saveConfig" class="space-y-6">
+                        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+                            <!-- 基础设置 -->
+                            <div class="sm:col-span-2">
+                                <h4 class="text-md font-medium text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">基础设置</h4>
+                            </div>
+                            
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API Base URL</label>
+                                <div class="mt-1">
+                                    <input type="text" v-model="editConfig.ai.apiBase" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" required>
+                                </div>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">如: https://api.openai.com</p>
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>
+                                <div class="mt-1">
+                                    <input type="password" v-model="editConfig.ai.apiKey" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" required>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">模型名称 (Model)</label>
+                                <div class="mt-1">
+                                    <input type="text" v-model="editConfig.ai.model" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" required>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">超时时间 (Timeout ms)</label>
+                                <div class="mt-1">
+                                    <input type="number" v-model.number="editConfig.ai.timeout" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors">
+                                </div>
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">系统提示词 (System Prompt)</label>
+                                <div class="mt-1">
+                                    <textarea rows="4" v-model="editConfig.ai.systemPrompt" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- 高级参数 -->
+                            <div class="sm:col-span-2 mt-4">
+                                <h4 class="text-md font-medium text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">高级参数 (可选)</h4>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Temperature</label>
+                                <div class="mt-1">
+                                    <input type="number" step="0.1" v-model.number="editConfig.ai.temperature" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Top P</label>
+                                <div class="mt-1">
+                                    <input type="number" step="0.1" v-model.number="editConfig.ai.topP" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Tokens</label>
+                                <div class="mt-1">
+                                    <input type="number" v-model.number="editConfig.ai.maxTokens" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Completion Tokens</label>
+                                <div class="mt-1">
+                                    <input type="number" v-model.number="editConfig.ai.maxCompletionTokens" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="o1/o3 模型使用">
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Reasoning Effort</label>
+                                <div class="mt-1">
+                                    <select v-model="editConfig.ai.reasoningEffort" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors">
+                                        <option :value="null">默认 (null)</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">服务端口 (重启生效)</label>
+                                <div class="mt-1">
+                                    <input type="number" v-model.number="editConfig.port" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-5">
+                            <div class="flex justify-end">
+                                <button type="button" @click="fetchConfig" class="bg-white dark:bg-gray-700 py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                                    重置
+                                </button>
+                                <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                                    保存设置
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 请求日志 Tab -->
+            <div v-show="currentTab === 'logs'" class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden transition-colors duration-200">
+                <div class="px-4 py-5 border-b border-gray-200 dark:border-gray-700 sm:px-6 flex justify-between items-center">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">近期请求记录</h3>
+                    <button @click="fetchLogs" class="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        刷新
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">时间</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">题目信息</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">状态/答案</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">耗时(s) / Token</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            <tr v-if="logs.length === 0">
+                                <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">暂无请求记录</td>
+                            </tr>
+                            <tr v-for="(log, index) in logs" :key="index" class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {{ new Date(log.time).toLocaleTimeString() }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-900 dark:text-gray-200 max-w-xs truncate" :title="log.question + (log.options ? '\n' + log.options : '')">
+                                    <div class="font-medium truncate">{{ log.question }}</div>
+                                    <div class="text-gray-500 dark:text-gray-400 text-xs truncate" v-if="log.type || log.options">{{ log.type }} | {{ log.options }}</div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                                    <span v-if="log.error" class="text-red-600 dark:text-red-400 truncate block" :title="log.error">{{ log.error }}</span>
+                                    <span v-else class="text-green-600 dark:text-green-400 truncate block" :title="log.answer">{{ log.answer }}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    <div v-if="!log.error">
+                                        <span class="font-medium">{{ log.timeElapsed }}s</span>
+                                        <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">({{ log.totalTokens }} tk)</span>
+                                    </div>
+                                    <div v-else class="text-red-500 dark:text-red-400">-</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const currentTab = ref('home');
+                const config = ref({});
+                const editConfig = reactive({ ai: {} });
+                const ocsConfigStr = ref('');
+                const logs = ref([]);
+                const toast = reactive({ show: false, message: '', type: 'success' });
+                
+                // Dark mode logic
+                const isDarkMode = ref(false);
+                
+                const toggleDarkMode = () => {
+                    isDarkMode.value = !isDarkMode.value;
+                };
+                
+                watch(isDarkMode, (val) => {
+                    if (val) {
+                        document.documentElement.classList.add('dark');
+                        localStorage.setItem('theme', 'dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.setItem('theme', 'light');
+                    }
+                });
+
+                const initTheme = () => {
+                    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                        isDarkMode.value = true;
+                    } else {
+                        isDarkMode.value = false;
+                    }
+                };
+
+                const showToast = (message, type = 'success') => {
+                    toast.message = message;
+                    toast.type = type;
+                    toast.show = true;
+                    setTimeout(() => { toast.show = false; }, 3000);
+                };
+
+                const fetchConfig = async () => {
+                    try {
+                        const res = await fetch('/api/config').then(r => r.json());
+                        if (res.code === 1) {
+                            config.value = res.data;
+                            Object.assign(editConfig, JSON.parse(JSON.stringify(res.data)));
+                            if (!editConfig.ai) editConfig.ai = {};
+                        }
+                    } catch (e) {
+                        showToast('获取配置失败', 'error');
+                    }
+                };
+
+                const fetchOcsConfig = async () => {
+                    try {
+                        const res = await fetch('/api/ocs-config').then(r => r.json());
+                        if (res.code === 1) {
+                            ocsConfigStr.value = JSON.stringify(res.data, null, 2);
+                        }
+                    } catch (e) {
+                        console.error('获取 OCS 配置失败', e);
+                    }
+                };
+
+                const fetchLogs = async () => {
+                    try {
+                        const res = await fetch('/api/logs').then(r => r.json());
+                        if (res.code === 1) {
+                            logs.value = res.data;
+                        }
+                    } catch (e) {
+                        // Ignore automatic refresh errors silently
+                    }
+                };
+
+                const saveConfig = async () => {
+                    try {
+                        // 预处理数字和null
+                        const payload = JSON.parse(JSON.stringify(editConfig));
+                        for(let key in payload.ai) {
+                            if(payload.ai[key] === "") payload.ai[key] = null;
+                        }
+
+                        const res = await fetch('/api/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        }).then(r => r.json());
+
+                        if (res.code === 1) {
+                            showToast('配置保存成功');
+                            fetchConfig();
+                        } else {
+                            showToast(res.msg, 'error');
+                        }
+                    } catch (e) {
+                        showToast('保存配置失败: ' + e.message, 'error');
+                    }
+                };
+
+                const copyOcsConfig = () => {
+                    navigator.clipboard.writeText(ocsConfigStr.value).then(() => {
+                        showToast('配置已复制到剪贴板');
+                    }).catch(() => {
+                        showToast('复制失败，请手动复制', 'error');
+                    });
+                };
+
+                onMounted(() => {
+                    initTheme();
+                    fetchConfig();
+                    fetchOcsConfig();
+                    fetchLogs();
+                    // 自动刷新日志
+                    setInterval(() => {
+                        if (currentTab.value === 'logs') {
+                            fetchLogs();
+                        }
+                    }, 5000);
+                });
+
+                return {
+                    currentTab,
+                    config,
+                    editConfig,
+                    ocsConfigStr,
+                    logs,
+                    toast,
+                    isDarkMode,
+                    toggleDarkMode,
+                    saveConfig,
+                    copyOcsConfig,
+                    fetchConfig,
+                    fetchLogs
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
