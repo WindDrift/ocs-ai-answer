@@ -25,12 +25,14 @@
 
 ## 特性
 
-- **零依赖外部 API SDK** — 纯原生 Node.js `https` 模块请求，无需 `openai` 等额外依赖
+- **零依赖外部 API SDK** — 纯原生 Node.js `http`/`https` 模块请求，无需 `openai` 等额外依赖
+- **模块化架构** — 配置、日志、AI 调用、路由各司其职，便于维护和扩展
 - **配置文件驱动** — 所有 AI 参数集中在 `config.json` 中，修改无需动代码
 - **推理模型支持** — 支持 o1/o3 系列模型的 `reasoning_effort` 思考模式
 - **Docker 一键部署** — 提供 Dockerfile + docker-compose.yml，适配 1Panel 等面板
 - **Token 消耗可见** — 每次请求在控制台输出推理/总 token 消耗
 - **超时保护** — 可配置请求超时，避免无限等待
+- **Web 控制面板** — 内置 Vue 3 + Tailwind CSS 管理界面，支持在线修改配置和查看日志
 
 ## 快速开始
 
@@ -70,9 +72,49 @@ npm start
 验证服务：
 
 ```bash
-curl http://localhost:3000
+curl http://localhost:3000/api/status
 # {"service":"OCS AI 答题服务","status":"running",...}
 ```
+
+## 项目结构
+
+```
+.
+├── server.js                  # 应用入口，启动服务器
+├── config.json                # 运行时配置（含密钥，不提交 Git）
+├── config.example.json        # 配置模板（可提交 Git）
+├── Dockerfile                 # Docker 镜像构建
+├── docker-compose.yml         # Docker Compose 编排
+├── package.json               # Node.js 项目配置
+├── public/
+│   └── index.html             # Web 控制面板（Vue 3 + Tailwind CSS）
+└── src/                       # 核心业务模块
+    ├── app.js                 # Express 应用组装（中间件 + 路由挂载）
+    ├── config.js              # 配置管理（加载 / 校验 / 热重载）
+    ├── logger.js              # 内存日志管理（自动裁剪）
+    ├── ai.js                  # AI API 交互（请求构建 / 调用 / 响应解析）
+    └── routes/                # 路由模块
+        ├── search.js          #   /search        答题查询接口
+        ├── config.js          #   /api/config    配置读写接口
+        ├── logs.js            #   /api/logs      日志查询接口
+        ├── ocs.js             #   /api/ocs-config OCS 配置生成接口
+        └── status.js          #   /api/status    服务状态接口
+```
+
+### 模块职责说明
+
+| 模块 | 文件 | 职责 |
+|---|---|---|
+| **入口** | `server.js` | 读取配置、启动 HTTP 服务器 |
+| **应用组装** | `src/app.js` | 注册中间件、挂载路由模块、导出 Express 实例 |
+| **配置管理** | `src/config.js` | 从 `config.json` 加载配置，合并环境变量覆盖与默认值，支持热重载 |
+| **日志管理** | `src/logger.js` | 内存日志存储，自动裁剪超出上限的旧记录 |
+| **AI 调用** | `src/ai.js` | 构建 OpenAI 兼容请求体、发送 HTTP 请求、解析响应、记录 Token 消耗 |
+| **搜索路由** | `src/routes/search.js` | GET/POST `/search` 答题查询，统一参数提取与错误处理 |
+| **配置路由** | `src/routes/config.js` | GET/POST `/api/config` 配置读取与更新 |
+| **日志路由** | `src/routes/logs.js` | GET `/api/logs` 日志列表查询 |
+| **OCS 路由** | `src/routes/ocs.js` | GET `/api/ocs-config` 生成 OCS 题库配置 JSON |
+| **状态路由** | `src/routes/status.js` | GET `/api/status` 服务健康检查 |
 
 ## 配置文件参考
 
@@ -220,7 +262,7 @@ docker compose logs -f
 
 1. **更新代码**：通过 1Panel 的 **主机** → **文件** 功能上传覆盖最新的代码，或者通过终端进入项目目录执行 `git pull` 获取最新代码。
 2. **重建编排**：登录 1Panel 面板 → 点击左侧菜单 **容器** → 选择 **编排**。
-3. 找到你创建的 `ocs-ai-answer` 编排项目，点击操作栏的 **重建**（或者进入该编排的详情页点击“重建”）。
+3. 找到你创建的 `ocs-ai-answer` 编排项目，点击操作栏的 **重建**（或者进入该编排的详情页点击"重建"）。
 4. 1Panel 会自动执行重新构建镜像并启动最新容器的过程。
 
 ### 手动 Docker 命令
@@ -264,11 +306,15 @@ docker run -d \
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `GET` | `/` | 服务状态 |
+| `GET` | `/api/status` | 服务状态 |
 | `GET` | `/search?title=题目&type=类型&options=选项` | 查询答案 |
 | `POST` | `/search` | 查询答案（JSON body） |
+| `GET` | `/api/config` | 获取当前配置 |
+| `POST` | `/api/config` | 更新配置（热重载） |
+| `GET` | `/api/logs` | 获取请求日志 |
+| `GET` | `/api/ocs-config` | 获取 OCS 题库配置 |
 
-### 请求参数
+### 请求参数（/search）
 
 | 参数 | 必填 | 说明 |
 |---|---|---|
@@ -290,20 +336,6 @@ docker run -d \
 { "code": 0, "msg": "AI API 调用失败: ..." }
 ```
 
-## 项目结构
-
-```
-.
-├── server.js              # 主服务入口
-├── config.json            # 配置文件（含密钥，不提交 Git）
-├── config.example.json    # 配置模板（可提交 Git）
-├── Dockerfile             # Docker 镜像构建
-├── docker-compose.yml     # Docker Compose 编排
-├── .gitignore             # Git 忽略规则
-├── package.json           # Node.js 项目配置
-└── node_modules/          # 依赖
-```
-
 ## 常见问题
 
 ### 返回 "AI API 调用失败: 401"
@@ -316,7 +348,7 @@ API Key 无效或未正确设置，检查 `config.json` 中的 `apiKey`。
 
 ### OCS 无法连接到本地服务器
 
-- 确保服务器已启动：`curl http://localhost:3000`
+- 确保服务器已启动：`curl http://localhost:3000/api/status`
 - OCS 配置中使用 `GM_xmlhttpRequest` 类型
 - 检查油猴脚本的 `@connect` 元信息
 
