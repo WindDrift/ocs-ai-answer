@@ -6,5 +6,5 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./config.json:/app/config.json:ro
+      - ./config.json:/app/config.json
     restart: unless-stopped
