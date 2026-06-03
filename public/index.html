@@ -97,6 +97,30 @@
                         </dl>
                     </div>
                 </div>
+
+                <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden transition-colors duration-200 mt-6">
+                    <div class="px-4 py-5 sm:p-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">今日数据统计</h3>
+                        <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-4">
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">请求次数</dt>
+                                <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ todayStats.requests }}</dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">输入 Token (平均)</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ todayStats.promptTokens }} <span class="text-sm text-gray-500">({{ todayStats.avgPromptTokens }})</span></dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">输出 Token (平均)</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ todayStats.completionTokens }} <span class="text-sm text-gray-500">({{ todayStats.avgCompletionTokens }})</span></dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">总 Token (平均)</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ todayStats.totalTokens }} <span class="text-sm text-gray-500">({{ todayStats.avgTotalTokens }})</span></dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
             </div>
 
             <!-- AI 设置 Tab -->
@@ -521,7 +545,7 @@
     </div>
 
     <script>
-        const { createApp, ref, reactive, onMounted, watch } = Vue;
+        const { createApp, ref, reactive, onMounted, watch, computed } = Vue;
 
         createApp({
             setup() {
@@ -531,6 +555,29 @@
                 const ocsConfigStr = ref('');
                 const logs = ref([]);
                 const toast = reactive({ show: false, message: '', type: 'success' });
+                
+                const todayStats = computed(() => {
+                    const today = new Date();
+                    const todayLogs = logs.value.filter(log => {
+                        const logDate = new Date(log.time);
+                        return logDate.getDate() === today.getDate() && 
+                               logDate.getMonth() === today.getMonth() && 
+                               logDate.getFullYear() === today.getFullYear();
+                    });
+
+                    const stats = {
+                        requests: todayLogs.length,
+                        promptTokens: todayLogs.reduce((sum, log) => sum + (log.promptTokens || 0), 0),
+                        completionTokens: todayLogs.reduce((sum, log) => sum + (log.completionTokens || 0), 0),
+                        totalTokens: todayLogs.reduce((sum, log) => sum + (log.totalTokens || 0), 0),
+                    };
+
+                    stats.avgPromptTokens = stats.requests ? Math.round(stats.promptTokens / stats.requests) : 0;
+                    stats.avgCompletionTokens = stats.requests ? Math.round(stats.completionTokens / stats.requests) : 0;
+                    stats.avgTotalTokens = stats.requests ? Math.round(stats.totalTokens / stats.requests) : 0;
+
+                    return stats;
+                });
                 
                 // API服务提供商配置
                 const providers = ref([
@@ -746,6 +793,7 @@
                     editConfig,
                     ocsConfigStr,
                     logs,
+                    todayStats,
                     toast,
                     isDarkMode,
                     toggleDarkMode,
