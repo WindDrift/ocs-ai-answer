@@ -83,8 +83,8 @@
                         <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">服务状态</h3>
                         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
                             <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
-                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">当前端口</dt>
-                                <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ config.port || 3000 }}</dd>
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">当前服务商</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white truncate" :title="currentProviderDisplay">{{ currentProviderDisplay }}</dd>
                             </div>
                             <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
                                 <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">当前模型</dt>
@@ -579,6 +579,16 @@
                     return stats;
                 });
                 
+                const currentProviderDisplay = computed(() => {
+                    if (!config.value || !config.value.ai || !config.value.ai.apiBase) return '未知';
+                    const currentApiBase = config.value.ai.apiBase;
+                    const matchedProvider = providers.value.find(p => p.apiBase === currentApiBase && p.id !== 'custom');
+                    if (matchedProvider) {
+                        return matchedProvider.name;
+                    }
+                    return currentApiBase;
+                });
+                
                 // API服务提供商配置
                 const providers = ref([
                     { id: 'openai', name: 'OpenAI', apiBase: 'https://api.openai.com' },
@@ -794,6 +804,7 @@
                     ocsConfigStr,
                     logs,
                     todayStats,
+                    currentProviderDisplay,
                     toast,
                     isDarkMode,
                     toggleDarkMode,
