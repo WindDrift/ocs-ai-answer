@@ -163,53 +163,296 @@
 
                             <!-- 高级参数 -->
                             <div class="sm:col-span-2 mt-4">
-                                <h4 class="text-md font-medium text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">高级参数 (可选)</h4>
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-md font-medium text-gray-800 dark:text-gray-200">高级参数</h4>
+                                    <button type="button" @click="toggleAdvancedParams" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                                        {{ showAdvancedParams ? '收起' : '展开全部' }}
+                                        <svg class="w-4 h-4 inline-block ml-1 transition-transform duration-200" :class="{ 'rotate-180': showAdvancedParams }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">以下参数为可选配置，留空则使用默认值或不传递该参数</p>
                             </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Temperature</label>
-                                <div class="mt-1">
-                                    <input type="number" step="0.1" v-model.number="editConfig.ai.temperature" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
-                                </div>
-                            </div>
+                            <div v-show="showAdvancedParams" class="sm:col-span-2 space-y-6">
+                                <!-- 参数分组：采样控制 -->
+                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 transition-colors">
+                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                        采样控制
+                                    </h5>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <!-- Temperature -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Temperature</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">控制输出随机性，值越高输出越随机</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">number</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center gap-2">
+                                                <input type="range" min="0" max="2" step="0.1" v-model.number="editConfig.ai.temperature" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                                                <input type="number" step="0.1" min="0" max="2" v-model.number="editConfig.ai.temperature" class="w-20 text-center shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-1 border dark:bg-gray-700 dark:text-white" :class="{ 'border-red-500': !validateParam('temperature', editConfig.ai.temperature) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>0 (确定性)</span>
+                                                <span>默认: 0.1</span>
+                                                <span>2 (最随机)</span>
+                                            </div>
+                                        </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Top P</label>
-                                <div class="mt-1">
-                                    <input type="number" step="0.1" v-model.number="editConfig.ai.topP" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
+                                        <!-- Top P -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Top P</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">核采样阈值，控制输出多样性</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">number</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center gap-2">
+                                                <input type="range" min="0.01" max="1" step="0.01" v-model.number="editConfig.ai.topP" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                                                <input type="number" step="0.01" min="0.01" max="1" v-model.number="editConfig.ai.topP" class="w-20 text-center shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-1 border dark:bg-gray-700 dark:text-white" :class="{ 'border-red-500': !validateParam('topP', editConfig.ai.topP) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>0.01</span>
+                                                <span>默认: 1.0</span>
+                                                <span>1.0</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Tokens</label>
-                                <div class="mt-1">
-                                    <input type="number" v-model.number="editConfig.ai.maxTokens" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="留空为 null">
-                                </div>
-                            </div>
+                                <!-- 参数分组：惩罚参数 -->
+                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 transition-colors">
+                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                        </svg>
+                                        惩罚参数
+                                    </h5>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <!-- Frequency Penalty -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Frequency Penalty</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">根据出现频率惩罚，降低重复内容</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">number</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center gap-2">
+                                                <input type="range" min="-2" max="2" step="0.1" v-model.number="editConfig.ai.frequencyPenalty" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                                                <input type="number" step="0.1" min="-2" max="2" v-model.number="editConfig.ai.frequencyPenalty" class="w-20 text-center shadow-sm focus:ring-orange-500 focus:border-orange-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-1 border dark:bg-gray-700 dark:text-white" :class="{ 'border-red-500': !validateParam('frequencyPenalty', editConfig.ai.frequencyPenalty) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>-2</span>
+                                                <span>默认: 0</span>
+                                                <span>2</span>
+                                            </div>
+                                        </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Completion Tokens</label>
-                                <div class="mt-1">
-                                    <input type="number" v-model.number="editConfig.ai.maxCompletionTokens" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" placeholder="o1/o3 模型使用">
+                                        <!-- Presence Penalty -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Presence Penalty</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">根据是否出现惩罚，增加新话题概率</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">number</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center gap-2">
+                                                <input type="range" min="-2" max="2" step="0.1" v-model.number="editConfig.ai.presencePenalty" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                                                <input type="number" step="0.1" min="-2" max="2" v-model.number="editConfig.ai.presencePenalty" class="w-20 text-center shadow-sm focus:ring-orange-500 focus:border-orange-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-1 border dark:bg-gray-700 dark:text-white" :class="{ 'border-red-500': !validateParam('presencePenalty', editConfig.ai.presencePenalty) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>-2</span>
+                                                <span>默认: 0</span>
+                                                <span>2</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Reasoning Effort</label>
-                                <div class="mt-1">
-                                    <select v-model="editConfig.ai.reasoningEffort" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors">
-                                        <option :value="null">默认 (null)</option>
-                                        <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="high">High</option>
-                                    </select>
+
+                                <!-- 参数分组：Token 控制 -->
+                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 transition-colors">
+                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                                        </svg>
+                                        Token 控制
+                                    </h5>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <!-- Max Tokens -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Tokens</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">生成内容的最大 token 数</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">integer</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <input type="number" min="1" max="131072" v-model.number="editConfig.ai.maxTokens" class="w-full shadow-sm focus:ring-green-500 focus:border-green-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white" placeholder="默认: 2048" :class="{ 'border-red-500': !validateParam('maxTokens', editConfig.ai.maxTokens) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>范围: 1 ~ 131072</span>
+                                                <span>默认: 2048</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Max Completion Tokens -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Completion Tokens</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">o1/o3/MiMO 等模型使用，优先于 Max Tokens</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">integer</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <input type="number" min="1" max="131072" v-model.number="editConfig.ai.maxCompletionTokens" class="w-full shadow-sm focus:ring-green-500 focus:border-green-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white" placeholder="留空使用 Max Tokens" :class="{ 'border-red-500': !validateParam('maxCompletionTokens', editConfig.ai.maxCompletionTokens) }">
+                                            </div>
+                                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                <span>范围: 1 ~ 131072</span>
+                                                <span>默认: null</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">服务端口 (重启生效)</label>
-                                <div class="mt-1">
-                                    <input type="number" v-model.number="editConfig.port" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors">
+
+                                <!-- 参数分组：推理与思考 -->
+                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 transition-colors">
+                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.95-.69-1.822-1.728-2.195l-.548-.547z"></path>
+                                        </svg>
+                                        推理与思考
+                                    </h5>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <!-- Reasoning Effort -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Reasoning Effort</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">DeepSeek 推理强度控制</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">select</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <select v-model="editConfig.ai.reasoningEffort" class="w-full shadow-sm focus:ring-purple-500 focus:border-purple-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white">
+                                                    <option :value="null">默认 (null) - 不传递</option>
+                                                    <option value="low">Low - 低强度推理</option>
+                                                    <option value="medium">Medium - 中等强度</option>
+                                                    <option value="high">High - 高强度推理</option>
+                                                </select>
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">仅 DeepSeek 模型支持</p>
+                                        </div>
+
+                                        <!-- Thinking -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thinking (思考模式)</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">启用思维链，模型会展示推理过程</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">switch</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center justify-between">
+                                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ editConfig.ai.thinking?.type === 'enabled' ? '已启用' : '已禁用' }}</span>
+                                                <button type="button" @click="toggleThinking" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2" :class="editConfig.ai.thinking?.type === 'enabled' ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-600'">
+                                                    <span class="sr-only">启用思考模式</span>
+                                                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="editConfig.ai.thinking?.type === 'enabled' ? 'translate-x-5' : 'translate-x-0'"></span>
+                                                </button>
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">MiMO/DeepSeek 思考模式支持</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 参数分组：其他参数 -->
+                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 transition-colors">
+                                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        </svg>
+                                        其他参数
+                                    </h5>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <!-- Seed -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Seed</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">随机种子，相同种子产生相似输出</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300">integer</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <input type="number" v-model.number="editConfig.ai.seed" class="w-full shadow-sm focus:ring-gray-500 focus:border-gray-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white" placeholder="留空为随机">
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">用于可重复性输出</p>
+                                        </div>
+
+                                        <!-- Stream -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Stream (流式输出)</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">启用 SSE 流式传输响应</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300">switch</span>
+                                            </div>
+                                            <div class="mt-2 flex items-center justify-between">
+                                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ editConfig.ai.stream ? '已启用' : '已禁用' }}</span>
+                                                <button type="button" @click="editConfig.ai.stream = !editConfig.ai.stream" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" :class="editConfig.ai.stream ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-600'">
+                                                    <span class="sr-only">启用流式输出</span>
+                                                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="editConfig.ai.stream ? 'translate-x-5' : 'translate-x-0'"></span>
+                                                </button>
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">当前项目暂不支持流式响应处理</p>
+                                        </div>
+
+                                        <!-- Stop -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors sm:col-span-2">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Stop (停止序列)</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">遇到这些序列时停止生成，最多4个</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300">string/array</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <input type="text" v-model="editConfig.ai.stop" class="w-full shadow-sm focus:ring-gray-500 focus:border-gray-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white" placeholder="多个序列用逗号分隔，如: END,STOP">
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">JSON 数组格式或单个字符串</p>
+                                        </div>
+
+                                        <!-- Response Format -->
+                                        <div class="bg-white dark:bg-gray-800 rounded-md p-3 shadow-sm transition-colors sm:col-span-2">
+                                            <div class="flex items-start justify-between">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Response Format (响应格式)</label>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">强制模型输出特定格式</p>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300">object</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <select v-model="editConfig.ai.responseFormat" class="w-full shadow-sm focus:ring-gray-500 focus:border-gray-500 text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white">
+                                                    <option :value="null">默认 - 不限制格式</option>
+                                                    <option :value="{ type: 'text' }">Text - 纯文本格式</option>
+                                                    <option :value="{ type: 'json_object' }">JSON Object - 强制 JSON 格式</option>
+                                                </select>
+                                            </div>
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">选择 JSON 格式时，需在提示词中要求输出 JSON</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -302,6 +545,9 @@
                 const isProviderChanging = ref(false);
                 const isUrlAutoFilled = ref(false);
                 
+                // 高级参数展开状态
+                const showAdvancedParams = ref(false);
+                
                 // Dark mode logic
                 const isDarkMode = ref(false);
                 
@@ -332,6 +578,49 @@
                     toast.type = type;
                     toast.show = true;
                     setTimeout(() => { toast.show = false; }, 3000);
+                };
+
+                // 切换高级参数展开状态
+                const toggleAdvancedParams = () => {
+                    showAdvancedParams.value = !showAdvancedParams.value;
+                };
+
+                // 切换思考模式
+                const toggleThinking = () => {
+                    if (editConfig.ai.thinking?.type === 'enabled') {
+                        editConfig.ai.thinking = null;
+                    } else {
+                        editConfig.ai.thinking = { type: 'enabled' };
+                    }
+                };
+
+                // 参数验证规则
+                const paramValidationRules = {
+                    temperature: { min: 0, max: 2, type: 'number' },
+                    topP: { min: 0.01, max: 1, type: 'number' },
+                    frequencyPenalty: { min: -2, max: 2, type: 'number' },
+                    presencePenalty: { min: -2, max: 2, type: 'number' },
+                    maxTokens: { min: 1, max: 131072, type: 'integer' },
+                    maxCompletionTokens: { min: 1, max: 131072, type: 'integer' }
+                };
+
+                // 参数验证函数
+                const validateParam = (paramName, value) => {
+                    if (value === null || value === undefined || value === '') {
+                        return true; // 空值允许
+                    }
+                    
+                    const rule = paramValidationRules[paramName];
+                    if (!rule) return true;
+                    
+                    const numValue = Number(value);
+                    if (isNaN(numValue)) return false;
+                    
+                    if (rule.type === 'integer' && !Number.isInteger(numValue)) {
+                        return false;
+                    }
+                    
+                    return numValue >= rule.min && numValue <= rule.max;
                 };
 
                 const handleProviderChange = () => {
@@ -368,6 +657,11 @@
                             config.value = res.data;
                             Object.assign(editConfig, JSON.parse(JSON.stringify(res.data)));
                             if (!editConfig.ai) editConfig.ai = {};
+                            
+                            // 确保 thinking 参数正确初始化
+                            if (editConfig.ai.thinking === undefined) {
+                                editConfig.ai.thinking = null;
+                            }
                             
                             const currentApiBase = editConfig.ai.apiBase;
                             const matchedProvider = providers.value.find(p => p.apiBase === currentApiBase);
@@ -463,7 +757,11 @@
                     selectedProvider,
                     isProviderChanging,
                     isUrlAutoFilled,
-                    handleProviderChange
+                    handleProviderChange,
+                    showAdvancedParams,
+                    toggleAdvancedParams,
+                    toggleThinking,
+                    validateParam
                 };
             }
         }).mount('#app');
