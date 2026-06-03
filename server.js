@@ -32,6 +32,7 @@ let AI_SEED = ai.seed !== undefined ? ai.seed : null;
 let AI_STREAM = ai.stream !== undefined ? ai.stream : false;
 let AI_RESPONSE_FORMAT = ai.responseFormat !== undefined ? ai.responseFormat : null;
 let AI_TIMEOUT = ai.timeout !== undefined ? ai.timeout : 60000;
+let AI_THINKING = ai.thinking !== undefined ? ai.thinking : null;
 
 function reloadConfig(newConfig) {
   config = newConfig;
@@ -52,6 +53,7 @@ function reloadConfig(newConfig) {
   AI_STREAM = ai.stream !== undefined ? ai.stream : false;
   AI_RESPONSE_FORMAT = ai.responseFormat !== undefined ? ai.responseFormat : null;
   AI_TIMEOUT = ai.timeout !== undefined ? ai.timeout : 60000;
+  AI_THINKING = ai.thinking !== undefined ? ai.thinking : null;
 }
 
 const logs = [];
@@ -121,6 +123,10 @@ function buildRequestBody(question, type, options) {
 
   if (AI_RESPONSE_FORMAT !== null && AI_RESPONSE_FORMAT !== undefined) {
     body.response_format = AI_RESPONSE_FORMAT;
+  }
+
+  if (AI_THINKING !== null && AI_THINKING !== undefined) {
+    body.thinking = AI_THINKING;
   }
 
   return JSON.stringify(body);

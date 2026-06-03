@@ -16,6 +16,7 @@
     "seed": null,
     "stream": false,
     "responseFormat": null,
-    "timeout": 60000
+    "timeout": 60000,
+    "thinking": null
   }
 }
