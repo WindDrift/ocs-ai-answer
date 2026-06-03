@@ -101,10 +101,14 @@
                 <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden transition-colors duration-200 mt-6">
                     <div class="px-4 py-5 sm:p-6">
                         <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">今日数据统计</h3>
-                        <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-4">
+                        <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-5">
                             <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
                                 <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">请求次数</dt>
                                 <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ todayStats.requests }}</dd>
+                            </div>
+                            <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
+                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">耗时(s) (平均)</dt>
+                                <dd class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ todayStats.timeElapsed }} <span class="text-sm text-gray-500">({{ todayStats.avgTimeElapsed }})</span></dd>
                             </div>
                             <div class="px-4 py-5 bg-gray-50 dark:bg-gray-700/50 shadow rounded-lg overflow-hidden sm:p-6 transition-colors">
                                 <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">输入 Token (平均)</dt>
@@ -567,11 +571,14 @@
 
                     const stats = {
                         requests: todayLogs.length,
+                        timeElapsed: todayLogs.reduce((sum, log) => sum + (parseFloat(log.timeElapsed) || 0), 0),
                         promptTokens: todayLogs.reduce((sum, log) => sum + (log.promptTokens || 0), 0),
                         completionTokens: todayLogs.reduce((sum, log) => sum + (log.completionTokens || 0), 0),
                         totalTokens: todayLogs.reduce((sum, log) => sum + (log.totalTokens || 0), 0),
                     };
 
+                    stats.avgTimeElapsed = stats.requests ? (stats.timeElapsed / stats.requests).toFixed(2) : 0;
+                    stats.timeElapsed = stats.timeElapsed.toFixed(2);
                     stats.avgPromptTokens = stats.requests ? Math.round(stats.promptTokens / stats.requests) : 0;
                     stats.avgCompletionTokens = stats.requests ? Math.round(stats.completionTokens / stats.requests) : 0;
                     stats.avgTotalTokens = stats.requests ? Math.round(stats.totalTokens / stats.requests) : 0;
