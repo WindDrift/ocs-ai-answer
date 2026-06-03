@@ -510,7 +510,7 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">时间</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">题目信息</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">状态/答案</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">耗时(s) / Token</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">耗时(s) / Token(输入/输出/总)</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -532,7 +532,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                     <div v-if="!log.error">
                                         <span class="font-medium">{{ log.timeElapsed }}s</span>
-                                        <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">({{ log.totalTokens }} tk)</span>
+                                        <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">({{ log.promptTokens || 0 }} / {{ log.completionTokens || 0 }} / {{ log.totalTokens || 0 }} tk)</span>
                                     </div>
                                     <div v-else class="text-red-500 dark:text-red-400">-</div>
                                 </td>
