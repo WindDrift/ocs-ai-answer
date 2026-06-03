@@ -56,12 +56,24 @@ function reloadConfig(newConfig) {
   AI_THINKING = ai.thinking !== undefined ? ai.thinking : null;
 }
 
-const logs = [];
+const logsPath = path.join(__dirname, "logs.json");
+let logs = [];
+if (fs.existsSync(logsPath)) {
+  try {
+    logs = JSON.parse(fs.readFileSync(logsPath, "utf-8"));
+  } catch (e) {
+    console.error("读取 logs.json 失败:", e.message);
+  }
+}
+
 function addLog(log) {
   logs.unshift(log);
   if (logs.length > 200) {
     logs.pop();
   }
+  fs.writeFile(logsPath, JSON.stringify(logs, null, 2), "utf-8", (err) => {
+    if (err) console.error("日志持久化失败:", err.message);
+  });
 }
 
 const app = express();
