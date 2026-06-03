@@ -337,11 +337,12 @@ app.get("/api/ocs-config", (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
+  const ai = config.ai;
   console.log(`========================================`);
   console.log(`  OCS AI 答题服务已启动`);
   console.log(`  监听地址: http://0.0.0.0:${PORT}`);
-  console.log(`  AI API: ${AI_API_BASE}`);
-  console.log(`  AI 模型: ${AI_MODEL}`);
+  console.log(`  AI API: ${ai.apiBase}`);
+  console.log(`  AI 模型: ${ai.model}`);
   console.log(`  控制面板: http://localhost:${PORT}/`);
   console.log(`========================================`);
 });
