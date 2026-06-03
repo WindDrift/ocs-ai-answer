@@ -111,9 +111,24 @@
                             </div>
                             
                             <div class="sm:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API Base URL</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API 服务提供商</label>
                                 <div class="mt-1">
-                                    <input type="text" v-model="editConfig.ai.apiBase" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-colors" required>
+                                    <select v-model="selectedProvider" @change="handleProviderChange" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-all duration-200" :class="{ 'ring-2 ring-blue-500': isProviderChanging }">
+                                        <option value="">选择服务提供商...</option>
+                                        <option v-for="provider in providers" :key="provider.id" :value="provider.id">{{ provider.name }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API Base URL</label>
+                                <div class="mt-1 relative">
+                                    <input type="text" v-model="editConfig.ai.apiBase" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md p-2 border dark:bg-gray-700 dark:text-white transition-all duration-200" :class="{ 'ring-2 ring-green-500 border-green-500': isUrlAutoFilled }" required>
+                                    <span v-if="isUrlAutoFilled" class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-green-500">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </span>
                                 </div>
                                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">如: https://api.openai.com</p>
                             </div>
@@ -274,6 +289,19 @@
                 const logs = ref([]);
                 const toast = reactive({ show: false, message: '', type: 'success' });
                 
+                // API服务提供商配置
+                const providers = ref([
+                    { id: 'openai', name: 'OpenAI', apiBase: 'https://api.openai.com' },
+                    { id: 'xiaomi', name: '小米 MiMO', apiBase: 'https://api.xiaomimimo.com' },
+                    { id: 'deepseek', name: 'DeepSeek', apiBase: 'https://api.deepseek.com' },
+                    { id: 'dashscope', name: '阿里云 通义千问', apiBase: 'https://dashscope.aliyuncs.com/compatible-mode' },
+                    { id: 'custom', name: '自定义', apiBase: '' }
+                ]);
+                
+                const selectedProvider = ref('');
+                const isProviderChanging = ref(false);
+                const isUrlAutoFilled = ref(false);
+                
                 // Dark mode logic
                 const isDarkMode = ref(false);
                 
@@ -306,6 +334,33 @@
                     setTimeout(() => { toast.show = false; }, 3000);
                 };
 
+                const handleProviderChange = () => {
+                    if (!selectedProvider.value) {
+                        isUrlAutoFilled.value = false;
+                        return;
+                    }
+                    
+                    isProviderChanging.value = true;
+                    
+                    setTimeout(() => {
+                        const provider = providers.value.find(p => p.id === selectedProvider.value);
+                        if (provider && provider.apiBase) {
+                            editConfig.ai.apiBase = provider.apiBase;
+                            isUrlAutoFilled.value = true;
+                            
+                            setTimeout(() => {
+                                isUrlAutoFilled.value = false;
+                            }, 2000);
+                        } else {
+                            isUrlAutoFilled.value = false;
+                        }
+                        
+                        setTimeout(() => {
+                            isProviderChanging.value = false;
+                        }, 300);
+                    }, 150);
+                };
+
                 const fetchConfig = async () => {
                     try {
                         const res = await fetch('/api/config').then(r => r.json());
@@ -313,6 +368,10 @@
                             config.value = res.data;
                             Object.assign(editConfig, JSON.parse(JSON.stringify(res.data)));
                             if (!editConfig.ai) editConfig.ai = {};
+                            
+                            const currentApiBase = editConfig.ai.apiBase;
+                            const matchedProvider = providers.value.find(p => p.apiBase === currentApiBase);
+                            selectedProvider.value = matchedProvider ? matchedProvider.id : '';
                         }
                     } catch (e) {
                         showToast('获取配置失败', 'error');
@@ -399,7 +458,12 @@
                     saveConfig,
                     copyOcsConfig,
                     fetchConfig,
-                    fetchLogs
+                    fetchLogs,
+                    providers,
+                    selectedProvider,
+                    isProviderChanging,
+                    isUrlAutoFilled,
+                    handleProviderChange
                 };
             }
         }).mount('#app');
