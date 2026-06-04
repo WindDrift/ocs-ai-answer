@@ -2,16 +2,66 @@
  * SettingsTab 组件 - AI 设置
  *
  * 包含：
- *   1. API Base URL 预设下拉（含 4 家厂商 + 控制台跳转）
- *   2. 完整 AI 参数配置（按 AIParams.groups 动态分组渲染）
- *   3. 服务端口配置
- *   4. 参数保存与重置
+ *   1. 配置档案切换（顶部卡片，含下拉/激活徽标/确认弹窗/历史时间线）
+ *   2. API Base URL 预设下拉（含 4 家厂商 + 控制台跳转）
+ *   3. 完整 AI 参数配置（按 AIParams.groups 动态分组渲染）
+ *   4. 服务端口配置
+ *   5. 参数保存与重置
  */
 (function (global) {
   "use strict";
 
   const template = /* html */ `
 <section>
+  <!-- ============== 配置档案 ============== -->
+  <div class="card profile-card">
+    <div class="card-header">
+      <h3 class="card-title">配置档案</h3>
+      <p class="card-sub">在多套预设配置间一键切换，切换后立即生效。</p>
+    </div>
+
+    <div class="profile-grid">
+      <div>
+        <label class="form-label">选择档案</label>
+        <div class="profile-select-row">
+          <select v-model="selectedProfileName" :disabled="isSwitching" class="form-select">
+            <option v-for="p in profiles" :key="p.name" :value="p.name">
+              {{ p.name }}{{ p.name === activeProfileName ? '（当前激活）' : '' }}
+            </option>
+          </select>
+          <button
+            type="button"
+            @click="onSwitchClick"
+            :disabled="!canSwitch"
+            :class="['btn-primary', 'btn-sm', isSwitching ? 'is-loading' : '']">
+            <span v-if="isSwitching">切换中…</span>
+            <span v-else>一键切换</span>
+          </button>
+        </div>
+        <p class="form-hint" v-if="selectedProfile && selectedProfile.description">
+          {{ selectedProfile.description }}
+        </p>
+        <p class="form-hint" v-else>选择后点击"一键切换"应用此档案。</p>
+      </div>
+
+      <div>
+        <label class="form-label">最近切换</label>
+        <ul class="profile-timeline" v-if="profileHistory.length">
+          <li v-for="(h, i) in profileHistory.slice(0, 5)" :key="i" class="profile-timeline-item">
+            <span class="profile-timeline-dot" :class="h.success ? 'is-success' : 'is-fail'"></span>
+            <span class="profile-timeline-text">
+              <span class="profile-timeline-from">{{ h.from || '—' }}</span>
+              <span class="profile-timeline-arrow">→</span>
+              <span class="profile-timeline-to">{{ h.to }}</span>
+            </span>
+            <span class="profile-timeline-time">{{ formatRelativeTime(h.time) }}</span>
+          </li>
+        </ul>
+        <div v-else class="profile-timeline-empty">暂无切换记录</div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-header">
       <h3 class="card-title">AI 参数设置</h3>
@@ -153,19 +203,67 @@
       </div>
     </form>
   </div>
+
+  <!-- ============== 切换确认弹窗 ============== -->
+  <transition name="fade">
+    <div v-if="showSwitchConfirm" class="switch-confirm-mask" @click.self="cancelSwitch">
+      <div class="switch-confirm-dialog" role="dialog" aria-modal="true">
+        <h4 class="switch-confirm-title">确认切换配置档案</h4>
+        <p class="switch-confirm-body">
+          将从 <strong>{{ activeProfileName }}</strong> 切换到 <strong>{{ selectedProfileName }}</strong>。
+        </p>
+        <p class="switch-confirm-warn" v-if="hasUnsavedChanges">
+          ⚠ 当前编辑区有未保存的修改，切换后将丢失。
+        </p>
+        <p class="switch-confirm-warn" v-else>
+          切换后 AI 调用将立即使用新配置。
+        </p>
+        <div class="switch-confirm-actions">
+          <button type="button" @click="cancelSwitch" class="btn-ghost btn-sm">取消</button>
+          <button type="button" @click="confirmSwitch" class="btn-primary btn-sm" :disabled="isSwitching">
+            {{ isSwitching ? '切换中…' : '确认切换' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </section>
 `;
+
+  /**
+   * 将 ISO 时间字符串格式化为相对时间（"刚刚"/"3 分钟前"/"2 小时前"/"2026-06-04"）
+   * @param {string} iso
+   * @returns {string}
+   */
+  function formatRelativeTime(iso) {
+    if (!iso) return "";
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const diff = Date.now() - t;
+    if (diff < 60 * 1000) return "刚刚";
+    if (diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + " 分钟前";
+    if (diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + " 小时前";
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
 
   const SettingsTab = {
     template,
     props: {
       editConfig: { type: Object, required: true },
+      profiles: { type: Array, default: () => [] },
+      activeProfileName: { type: String, default: "default" },
+      profileHistory: { type: Array, default: () => [] },
     },
-    emits: ["save", "reset"],
+    emits: ["save", "reset", "switch-profile", "show-toast", "reload-config"],
     data() {
       return {
         selectedProvider: "__custom",
         isUrlAutoFilled: false,
+        selectedProfileName: this.activeProfileName,
+        isSwitching: false,
+        showSwitchConfirm: false,
+        hasUnsavedChanges: false,
       };
     },
     computed: {
@@ -178,6 +276,16 @@
       currentProvider() {
         if (this.selectedProvider === "__custom") return null;
         return Providers.providers.find((p) => p.id === this.selectedProvider) || null;
+      },
+      selectedProfile() {
+        return this.profiles.find((p) => p.name === this.selectedProfileName) || null;
+      },
+      canSwitch() {
+        if (this.isSwitching) return false;
+        if (!this.selectedProfileName) return false;
+        if (this.selectedProfileName === this.activeProfileName) return false;
+        if (!this.profiles.some((p) => p.name === this.selectedProfileName)) return false;
+        return true;
       },
     },
     watch: {
@@ -193,6 +301,16 @@
             this.selectedProvider = "__custom";
             this.isUrlAutoFilled = false;
           }
+        },
+      },
+      activeProfileName(newVal) {
+        // 父组件刷新时同步下拉选中
+        this.selectedProfileName = newVal;
+      },
+      editConfig: {
+        deep: true,
+        handler() {
+          this.hasUnsavedChanges = true;
         },
       },
     },
@@ -264,13 +382,64 @@
           if (payload.ai[k] === "") payload.ai[k] = null;
         }
         this.$emit("save", payload);
+        this.hasUnsavedChanges = false;
       },
 
       onReset() {
         this.isUrlAutoFilled = false;
         this.selectedProvider = "__custom";
+        this.hasUnsavedChanges = false;
         this.$emit("reset");
       },
+
+      /**
+       * 点击"一键切换"按钮：弹出确认弹窗
+       */
+      onSwitchClick() {
+        if (!this.canSwitch) return;
+        this.showSwitchConfirm = true;
+      },
+
+      cancelSwitch() {
+        if (this.isSwitching) return;
+        this.showSwitchConfirm = false;
+        // 取消时把下拉选回当前激活档案
+        this.selectedProfileName = this.activeProfileName;
+      },
+
+      /**
+       * 确认切换：调用后端接口，成功后通知父组件刷新
+       */
+      async confirmSwitch() {
+        if (this.isSwitching) return;
+        this.isSwitching = true;
+        try {
+          const target = this.selectedProfileName;
+          this.$emit("switch-profile", target, async (success, msg) => {
+            this.isSwitching = false;
+            this.showSwitchConfirm = false;
+            if (success) {
+              this.hasUnsavedChanges = false;
+              this.$emit("show-toast", msg || "切换成功", "success");
+              this.$emit("reload-config");
+            } else {
+              this.selectedProfileName = this.activeProfileName;
+              this.$emit("show-toast", msg || "切换失败", "error");
+            }
+            // 防抖：1 秒内禁用按钮
+            setTimeout(() => { this.isSwitching = false; }, 1000);
+          });
+        } catch (e) {
+          this.isSwitching = false;
+          this.showSwitchConfirm = false;
+          this.$emit("show-toast", e.message || "切换失败", "error");
+        }
+      },
+
+      /**
+       * 格式化相对时间（暴露给模板）
+       */
+      formatRelativeTime,
     },
   };
 

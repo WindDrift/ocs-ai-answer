@@ -4,12 +4,16 @@
  * 统一管理 fetch 调用、错误处理与 JSON 解析。
  *
  * 暴露：
- *   - window.API.getConfig        GET  /api/config
- *   - window.API.saveConfig       POST /api/config
- *   - window.API.getLogs          GET  /api/logs
- *   - window.API.getTodayStats    GET  /api/logs/today
- *   - window.API.getOcsConfig     GET  /api/ocs-config
- *   - window.API.getStatus        GET  /api/status
+ *   - window.API.getConfig            GET  /api/config
+ *   - window.API.saveConfig           POST /api/config
+ *   - window.API.getLogs              GET  /api/logs
+ *   - window.API.getTodayStats        GET  /api/logs/today
+ *   - window.API.getRangeStats        GET  /api/logs/range?window=...
+ *   - window.API.getOcsConfig         GET  /api/ocs-config
+ *   - window.API.getStatus            GET  /api/status
+ *   - window.API.getProfiles          GET  /api/config/profiles
+ *   - window.API.switchProfile        POST /api/config/profiles/switch
+ *   - window.API.getProfileHistory    GET  /api/config/profiles/history
  */
 (function (global) {
   "use strict";
@@ -52,11 +56,27 @@
       const qs = date ? `?date=${encodeURIComponent(date)}` : "";
       return request("/api/logs/today" + qs);
     },
+    getRangeStats(window) {
+      const key = window || "24h";
+      return request(`/api/logs/range?window=${encodeURIComponent(key)}`);
+    },
     getOcsConfig() {
       return request("/api/ocs-config");
     },
     getStatus() {
       return request("/api/status");
+    },
+    getProfiles() {
+      return request("/api/config/profiles");
+    },
+    switchProfile(name) {
+      return request("/api/config/profiles/switch", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+    },
+    getProfileHistory() {
+      return request("/api/config/profiles/history");
     },
   };
 

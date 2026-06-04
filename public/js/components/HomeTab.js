@@ -93,21 +93,47 @@
         </div>
       </div>
 
-      <!-- 趋势图 -->
-      <div class="trend-grid">
-        <div class="trend-card">
-          <div class="trend-title">24h 请求数趋势</div>
-          <div v-html="requestChartSvg" class="trend-svg"></div>
+      <!-- 趋势图 + 时段切换 -->
+      <div class="trend-section">
+        <div class="trend-toolbar">
+          <span class="trend-toolbar-label">趋势时段</span>
+          <div class="trend-window-group">
+            <button
+              v-for="opt in windowOptions"
+              :key="opt.key"
+              @click="changeWindow(opt.key)"
+              :class="['trend-window-btn', timeWindow === opt.key ? 'is-active' : '']">
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
-        <div class="trend-card">
-          <div class="trend-title">24h Token 消耗趋势</div>
-          <div v-html="tokenChartSvg" class="trend-svg"></div>
-        </div>
+        <div v-if="!rangeStats" class="empty-state">趋势加载中...</div>
+        <template v-else>
+          <div class="trend-grid">
+            <div class="trend-card">
+              <div class="trend-title">{{ rangeStats.windowLabel }} 请求数趋势</div>
+              <div v-html="requestChartSvg" class="trend-svg"></div>
+            </div>
+            <div class="trend-card">
+              <div class="trend-title">{{ rangeStats.windowLabel }} Token 消耗趋势</div>
+              <div v-html="tokenChartSvg" class="trend-svg"></div>
+            </div>
+          </div>
+        </template>
       </div>
     </template>
   </div>
 </section>
 `;
+
+  const WINDOW_OPTIONS = [
+    { key: "5m",  label: "近5分钟" },
+    { key: "30m", label: "近30分钟" },
+    { key: "1h",  label: "近1小时" },
+    { key: "3h",  label: "近3小时" },
+    { key: "12h", label: "近12小时" },
+    { key: "24h", label: "近24小时" },
+  ];
 
   const HomeTab = {
     template,
@@ -119,8 +145,13 @@
       providerColor: { type: String, required: true },
       apiBase: { type: String, required: true },
       todayStats: { type: Object, default: null },
+      rangeStats: { type: Object, default: null },
+      timeWindow: { type: String, default: "24h" },
     },
-    emits: ["copy-config", "refresh-today"],
+    emits: ["copy-config", "refresh-today", "change-window"],
+    data() {
+      return { windowOptions: WINDOW_OPTIONS };
+    },
     methods: {
       copyOcsConfig() {
         this.$emit("copy-config");
@@ -128,23 +159,20 @@
       refreshToday() {
         this.$emit("refresh-today");
       },
+      changeWindow(key) {
+        if (key !== this.timeWindow) this.$emit("change-window", key);
+      },
     },
     computed: {
       requestChartSvg() {
-        if (!this.todayStats || !this.todayStats.perHour) return "";
-        const data = this.todayStats.perHour.map((h) => ({
-          label: h.hour + "时",
-          value: h.count,
-        }));
-        return SvgChart.line(data, { color: "#3b82f6", height: 180 });
+        const series = (this.rangeStats && this.rangeStats.requestSeries) || [];
+        if (!series.length) return "";
+        return SvgChart.line(series, { color: "#3b82f6", height: 180 });
       },
       tokenChartSvg() {
-        if (!this.todayStats || !this.todayStats.perHour) return "";
-        const data = this.todayStats.perHour.map((h) => ({
-          label: h.hour + "时",
-          value: h.totalTokens,
-        }));
-        return SvgChart.bar(data, { color: "#10b981", height: 180 });
+        const series = (this.rangeStats && this.rangeStats.tokenSeries) || [];
+        if (!series.length) return "";
+        return SvgChart.bar(series, { color: "#10b981", height: 180 });
       },
     },
   };

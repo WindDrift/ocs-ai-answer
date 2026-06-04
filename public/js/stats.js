@@ -2,10 +2,12 @@
  * 今日数据格式化模块
  *
  * 将后端 /api/logs/today 返回的原始统计数据格式化为 UI 友好的展示数据。
+ * 将后端 /api/logs/range 返回的时间窗口数据格式化为趋势图所需的展示数据。
  * 同时提供单条日志的 Token 拆分计算。
  *
  * 暴露：
  *   - window.Stats.formatToday        原始统计 → 展示数据
+ *   - window.Stats.formatRange        时间窗口统计 → 趋势图数据
  *   - window.Stats.formatLogTokens    单条日志 → 4 项 Token 展示
  *   - window.Stats.formatNumber       数字千分位
  *   - window.Stats.formatPercent      0~1 → 百分比字符串
@@ -82,6 +84,30 @@
   }
 
   /**
+   * 格式化时间窗口统计数据（用于趋势图）
+   * @param {object} raw 后端 /api/logs/range 返回的数据
+   * @returns {object|null}
+   */
+  function formatRange(raw) {
+    if (!raw) return null;
+    const buckets = Array.isArray(raw.perBucket) ? raw.perBucket : [];
+    return {
+      window: raw.window,
+      windowLabel: raw.windowLabel,
+      requestSeries: buckets.map((b) => ({ label: b.label, value: b.count || 0 })),
+      tokenSeries: buckets.map((b) => ({ label: b.label, value: b.totalTokens || 0 })),
+      requestCount: formatNumber(raw.requestCount),
+      successCount: formatNumber(raw.successCount),
+      failedCount: formatNumber(raw.failedCount),
+      promptTokens: formatNumber(raw.promptTokens),
+      cachedTokens: formatNumber(raw.cachedTokens),
+      completionTokens: formatNumber(raw.completionTokens),
+      totalTokens: formatNumber(raw.totalTokens),
+      cacheHitRate: formatPercent(raw.cacheHitRate),
+    };
+  }
+
+  /**
    * 格式化单条日志的 Token 数据（4 项）
    * @param {object} log
    * @returns {{input: number, cached: number, output: number, total: number}}
@@ -98,6 +124,7 @@
 
   global.Stats = {
     formatToday,
+    formatRange,
     formatLogTokens,
     formatNumber,
     formatPercent,

@@ -43,6 +43,25 @@ const SESSION_DEFAULTS = {
 };
 
 /**
+ * 规范化档案列表：确保至少有 default 档案
+ * @param {object} config
+ * @returns {Array<{name:string, description?:string, ai:object}>}
+ */
+function normalizeProfiles(config) {
+  const raw = config && config.profiles;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw
+      .filter((p) => p && typeof p.name === "string" && p.name.trim())
+      .map((p) => ({
+        name: p.name,
+        description: p.description || "",
+        ai: p.ai || {},
+      }));
+  }
+  return [{ name: "default", description: "默认配置", ai: (config && config.ai) || {} }];
+}
+
+/**
  * 从 config.json 文件加载并解析配置
  * 如果文件不存在则终止进程
  * @returns {object} 解析后的配置对象
@@ -104,8 +123,25 @@ class ConfigManager {
   constructor() {
     /** @type {object} 原始配置（来自文件） */
     this._rawConfig = loadConfigFromFile();
+    /** @type {Array<object>} 档案列表 */
+    this._profiles = normalizeProfiles(this._rawConfig);
+    /** @type {string} 当前激活档案名 */
+    this._activeProfile = this._resolveActiveProfile();
     /** @type {object} 解析后的 AI 配置 */
     this._aiConfig = resolveAIConfig(this._rawConfig);
+  }
+
+  /**
+   * 解析当前激活档案名（缺省 default，若指定但不存在则回退到 default）
+   * @returns {string}
+   */
+  _resolveActiveProfile() {
+    const declared = this._rawConfig && this._rawConfig.activeProfile;
+    if (typeof declared === "string" && declared.trim()) {
+      const exists = this._profiles.some((p) => p.name === declared);
+      if (exists) return declared;
+    }
+    return "default";
   }
 
   /** 获取服务端口（环境变量 PORT 优先） */
@@ -123,6 +159,16 @@ class ConfigManager {
     return this._aiConfig;
   }
 
+  /** 获取档案列表 */
+  get profiles() {
+    return this._profiles;
+  }
+
+  /** 获取当前激活档案名 */
+  get activeProfile() {
+    return this._activeProfile;
+  }
+
   /** 获取配置文件路径 */
   get configPath() {
     return CONFIG_PATH;
@@ -135,7 +181,64 @@ class ConfigManager {
   reload(newConfig) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), "utf-8");
     this._rawConfig = newConfig;
+    this._profiles = normalizeProfiles(newConfig);
+    this._activeProfile = this._resolveActiveProfile();
     this._aiConfig = resolveAIConfig(newConfig);
+  }
+
+  /**
+   * 切换到指定档案：将 ai 字段替换为目标档案的 ai 配置，并持久化到文件
+   * @param {string} name - 目标档案名
+   * @returns {{ok:boolean, msg:string, from?:string, to?:string}}
+   */
+  switchTo(name) {
+    if (!name || typeof name !== "string") {
+      return { ok: false, msg: "缺少 name 参数" };
+    }
+    const target = this._profiles.find((p) => p.name === name);
+    if (!target) {
+      return { ok: false, msg: "档案不存在: " + name };
+    }
+    const fromName = this._activeProfile;
+    if (fromName === name) {
+      return { ok: false, msg: "当前已是该档案: " + name };
+    }
+
+    // 原子写入：先备份现有 config.json，失败时回滚
+    const backupPath = CONFIG_PATH + ".bak";
+    const original = fs.readFileSync(CONFIG_PATH, "utf-8");
+    try {
+      fs.writeFileSync(backupPath, original, "utf-8");
+    } catch (_) {
+      // 备份失败不阻塞切换
+    }
+
+    const newRaw = JSON.parse(JSON.stringify(this._rawConfig));
+    newRaw.ai = JSON.parse(JSON.stringify(target.ai || {}));
+    newRaw.activeProfile = name;
+    // 同步档案列表：保持用户定义的 profiles 完整
+    newRaw.profiles = this._profiles.map((p) => ({
+      name: p.name,
+      description: p.description,
+      ai: p.ai,
+    }));
+
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newRaw, null, 2), "utf-8");
+    } catch (e) {
+      // 写文件失败：回滚到原内容
+      try {
+        fs.writeFileSync(CONFIG_PATH, original, "utf-8");
+      } catch (_) {}
+      return { ok: false, msg: "写入配置文件失败: " + e.message };
+    }
+
+    // 写文件成功，更新内存
+    this._rawConfig = newRaw;
+    this._activeProfile = name;
+    this._aiConfig = resolveAIConfig(newRaw);
+
+    return { ok: true, msg: "已切换到 " + name, from: fromName, to: name };
   }
 }
 

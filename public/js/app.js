@@ -66,15 +66,24 @@
       :provider-color="providerColor"
       :api-base="apiBase"
       :today-stats="todayStats"
+      :range-stats="rangeStats"
+      :time-window="timeWindow"
       @copy-config="copyOcsConfig"
-      @refresh-today="fetchTodayStats">
+      @refresh-today="fetchTodayStats"
+      @change-window="onChangeWindow">
     </home-tab>
 
     <settings-tab
       v-show="currentTab === 'settings'"
       :edit-config="editConfig"
+      :profiles="profiles"
+      :active-profile-name="activeProfileName"
+      :profile-history="profileHistory"
       @save="saveConfig"
-      @reset="fetchConfig">
+      @reset="fetchConfig"
+      @switch-profile="handleSwitchProfile"
+      @show-toast="showToast"
+      @reload-config="fetchConfig">
     </settings-tab>
 
     <logs-tab
@@ -106,6 +115,12 @@
       const ocsConfigStr = ref("");
       const logs = ref([]);
       const todayStats = ref(null);
+      const rangeStats = ref(null);
+      const timeWindow = ref("24h");
+      // 配置档案状态（由 fetchProfiles 填充）
+      const profiles = ref([]);
+      const activeProfileName = ref("default");
+      const profileHistory = ref([]);
       const toast = reactive({ show: false, message: "", type: "success" });
       const isDarkMode = ref(false);
 
@@ -144,6 +159,34 @@
         }
       };
 
+      /**
+       * 拉取档案列表 + 当前激活 + 切换历史
+       * 与 fetchConfig 并行调用，不阻塞页面渲染
+       */
+      const fetchProfiles = async () => {
+        const res = await API.getProfiles();
+        if (res.code === 1 && res.data) {
+          profiles.value = res.data.profiles || [];
+          activeProfileName.value = res.data.activeProfile || "default";
+          profileHistory.value = res.data.history || [];
+        }
+      };
+
+      /**
+       * 切换配置档案：调后端接口，成功后双源刷新（档案+配置）
+       * 回调 cb(success, msg) 由 SettingsTab 传入，用于关闭确认弹窗
+       */
+      const handleSwitchProfile = async (name, cb) => {
+        const res = await API.switchProfile(name);
+        if (res.code === 1) {
+          // 切换成功：刷新档案列表（含新历史）+ 主配置 + OCS 配置
+          await Promise.all([fetchProfiles(), fetchConfig(), fetchOcsConfig()]);
+          if (typeof cb === "function") cb(true, res.msg);
+        } else {
+          if (typeof cb === "function") cb(false, res.msg);
+        }
+      };
+
       const fetchOcsConfig = async () => {
         const res = await API.getOcsConfig();
         if (res.code === 1) {
@@ -163,6 +206,19 @@
         if (res.code === 1) {
           todayStats.value = Stats.formatToday(res.data);
         }
+      };
+
+      const fetchRangeStats = async (window) => {
+        const key = window || timeWindow.value || "24h";
+        const res = await API.getRangeStats(key);
+        if (res.code === 1) {
+          rangeStats.value = Stats.formatRange(res.data);
+        }
+      };
+
+      const onChangeWindow = (window) => {
+        timeWindow.value = window;
+        fetchRangeStats(window);
       };
 
       const saveConfig = async (payload) => {
@@ -217,10 +273,8 @@
 
       onMounted(() => {
         initTheme();
-        fetchConfig();
-        fetchOcsConfig();
-        fetchLogs();
-        fetchTodayStats();
+        // 并行拉取配置与档案列表，提升首屏速度
+        Promise.all([fetchConfig(), fetchOcsConfig(), fetchLogs(), fetchProfiles(), fetchTodayStats(), fetchRangeStats()]);
 
         // 定时刷新日志（仅在 logs tab 时刷新）+ 今日数据
         setInterval(() => {
@@ -230,6 +284,7 @@
           // 今日数据每 10 秒刷新一次
           if (Date.now() % 10000 < 5000) {
             fetchTodayStats();
+            fetchRangeStats();
           }
         }, 5000);
       });
@@ -241,8 +296,13 @@
         ocsConfigStr,
         logs,
         todayStats,
+        rangeStats,
+        timeWindow,
         toast,
         isDarkMode,
+        profiles,
+        activeProfileName,
+        profileHistory,
         apiBase,
         providerName,
         providerColor,
@@ -252,6 +312,10 @@
         fetchConfig,
         fetchLogs,
         fetchTodayStats,
+        fetchRangeStats,
+        onChangeWindow,
+        handleSwitchProfile,
+        showToast,
       };
     },
   });
