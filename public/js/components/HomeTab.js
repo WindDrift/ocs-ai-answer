@@ -4,7 +4,7 @@
  * 包含三大板块：
  *   1. OCS 题库配置（一键复制）
  *   2. 服务状态（当前服务商 / 模型 / 日志条数 / 当前端口兼容保留）
- *   3. 今日数据统计（9 个核心指标 + 24h 趋势图）
+ *   3. 今日数据统计（6 个核心指标 + 24h 趋势图）
  */
 (function (global) {
   "use strict";
@@ -59,7 +59,7 @@
 
     <div v-if="!todayStats" class="empty-state">加载中...</div>
     <template v-else>
-      <!-- 9 项核心指标 -->
+      <!-- 6 项核心指标（平均值合并到主数据底部） -->
       <div class="metric-grid">
         <div class="metric-cell">
           <div class="metric-label">请求总数量</div>
@@ -68,11 +68,7 @@
         <div class="metric-cell">
           <div class="metric-label">输入 Token</div>
           <div class="metric-value">{{ todayStats.promptTokens }}</div>
-          <div class="metric-foot">命中 {{ todayStats.cachedTokens }} / 未命中 {{ todayStats.uncachedTokens }}</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-label">平均每题输入 Token</div>
-          <div class="metric-value">{{ todayStats.averageInputTokens }}</div>
+          <div class="metric-foot">平均每题 {{ todayStats.averageInputTokens }} · 命中 {{ todayStats.cachedTokens }} / 未命中 {{ todayStats.uncachedTokens }}</div>
         </div>
         <div class="metric-cell metric-cell-accent">
           <div class="metric-label">缓存命中率</div>
@@ -84,10 +80,7 @@
         <div class="metric-cell">
           <div class="metric-label">输出 Token</div>
           <div class="metric-value">{{ todayStats.completionTokens }}</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-label">平均每题输出 Token</div>
-          <div class="metric-value">{{ todayStats.averageOutputTokens }}</div>
+          <div class="metric-foot">平均每题 {{ todayStats.averageOutputTokens }}</div>
         </div>
         <div class="metric-cell metric-cell-total">
           <div class="metric-label">总 Token 消耗</div>
@@ -96,11 +89,7 @@
         <div class="metric-cell">
           <div class="metric-label">总耗时</div>
           <div class="metric-value">{{ todayStats.totalTimeText }}</div>
-          <div class="metric-foot">≈ {{ todayStats.totalTimeMin }} 分钟</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-label">平均每题耗时</div>
-          <div class="metric-value">{{ todayStats.averageTimeSec }} <span class="metric-unit">秒</span></div>
+          <div class="metric-foot">平均每题 {{ todayStats.averageTimeSec }} 秒 · ≈ {{ todayStats.totalTimeMin }} 分钟</div>
         </div>
       </div>
 
