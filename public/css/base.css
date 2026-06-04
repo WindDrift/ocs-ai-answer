@@ -1,0 +1,177 @@
+/* =====================================================================
+ * base.css - 基础变量、Reset、主题色、滚动条
+ * ===================================================================== */
+
+:root {
+  /* 主色 */
+  --c-primary: #3b82f6;
+  --c-primary-600: #2563eb;
+  --c-primary-700: #1d4ed8;
+  --c-primary-50: #eff6ff;
+
+  /* 文字色 */
+  --c-text: #0f172a;
+  --c-text-2: #475569;
+  --c-text-3: #94a3b8;
+  --c-text-inv: #ffffff;
+
+  /* 背景 */
+  --c-bg: #f8fafc;
+  --c-bg-elev: #ffffff;
+  --c-bg-soft: #f1f5f9;
+  --c-border: #e2e8f0;
+  --c-border-soft: #f1f5f9;
+
+  /* 状态色 */
+  --c-success: #10b981;
+  --c-success-50: #ecfdf5;
+  --c-danger: #ef4444;
+  --c-danger-50: #fef2f2;
+  --c-warn: #f59e0b;
+  --c-warn-50: #fffbeb;
+
+  /* 圆角 */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* 阴影 */
+  --sh-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --sh-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --sh-lg: 0 12px 32px rgba(15, 23, 42, 0.08);
+
+  /* 间距 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* 字体 */
+  --ff-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+             "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica,
+             Arial, sans-serif;
+  --ff-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* ---------- 深色主题 ---------- */
+html.dark {
+  --c-text: #f1f5f9;
+  --c-text-2: #cbd5e1;
+  --c-text-3: #94a3b8;
+  --c-bg: #0b1220;
+  --c-bg-elev: #111827;
+  --c-bg-soft: #1f2937;
+  --c-border: #1f2937;
+  --c-border-soft: #111827;
+  --c-primary-50: rgba(59, 130, 246, 0.12);
+  --c-success-50: rgba(16, 185, 129, 0.12);
+  --c-danger-50: rgba(239, 68, 68, 0.12);
+  --c-warn-50: rgba(245, 158, 11, 0.12);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--ff-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+[v-cloak] {
+  display: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--c-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--c-primary-700);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+p {
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-3);
+}
+
+/* ---------- 文本工具类 ---------- */
+.text-center { text-align: center; }
+.text-slate-500 { color: var(--c-text-2); }
+.text-slate-600 { color: var(--c-text); }
+.text-slate-400 { color: var(--c-text-3); }
+.text-emerald-600 { color: var(--c-success); }
+.text-red-500 { color: var(--c-danger); }
+.text-red-600 { color: var(--c-danger); }
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 13px; }
+.text-red-500 { color: var(--c-danger); }
+.text-red-600 { color: var(--c-danger); }
+
+/* 移动端基础字号补偿 */
+@media (max-width: 480px) {
+  body { font-size: 13.5px; }
+}

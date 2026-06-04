@@ -1,0 +1,223 @@
+/* =====================================================================
+ * layout.css - 应用整体布局（导航、主区、Tab 切换、Footer）
+ * ===================================================================== */
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg);
+}
+
+/* ---------- 顶部导航 ---------- */
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--c-bg-elev);
+  border-bottom: 1px solid var(--c-border);
+  backdrop-filter: saturate(180%) blur(8px);
+}
+
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--sp-5);
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  min-width: 0;
+  flex: 1;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text);
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-tabs::-webkit-scrollbar { display: none; }
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--c-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.nav-tab:hover {
+  color: var(--c-text);
+  background: var(--c-bg-soft);
+}
+
+.nav-tab.is-active {
+  color: var(--c-primary);
+  background: var(--c-primary-50);
+  font-weight: 600;
+}
+
+.tab-icon {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  color: var(--c-text-2);
+  font-size: 18px;
+  transition: all 0.15s ease;
+}
+
+.icon-btn:hover {
+  color: var(--c-text);
+  background: var(--c-bg-soft);
+}
+
+/* ---------- 主区 ---------- */
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5);
+}
+
+@media (max-width: 640px) {
+  .app-main { padding: var(--sp-4) var(--sp-3); }
+}
+
+/* ---------- Footer ---------- */
+.app-footer {
+  text-align: center;
+  padding: var(--sp-5);
+  color: var(--c-text-3);
+  font-size: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.footer-dot {
+  opacity: 0.5;
+}
+
+/* ---------- 移动端导航适配 ---------- */
+@media (max-width: 640px) {
+  .nav-inner { padding: 0 var(--sp-3); height: 56px; }
+  .brand-name { display: none; }
+  .nav-tab { padding: var(--sp-2); font-size: 13px; }
+  .tab-icon { display: none; }
+}
+
+/* ---------- 通用空间工具 ---------- */
+.space-y-6 > * + * { margin-top: var(--sp-6); }
+.space-y-4 > * + * { margin-top: var(--sp-4); }
+.mt-2 { margin-top: var(--sp-2); }
+.mt-3 { margin-top: var(--sp-3); }
+.mt-4 { margin-top: var(--sp-4); }
+.mb-2 { margin-bottom: var(--sp-2); }
+.mb-3 { margin-bottom: var(--sp-3); }
+.mb-4 { margin-bottom: var(--sp-4); }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-2 { gap: var(--sp-2); }
+.gap-3 { gap: var(--sp-3); }
+.gap-4 { gap: var(--sp-4); }
+.w-full { width: 100%; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.top-2 { top: var(--sp-2); }
+.right-2 { right: var(--sp-2); }
+.cursor-pointer { cursor: pointer; }
+.overflow-hidden { overflow: hidden; }
+.overflow-x-auto { overflow-x: auto; }
+.whitespace-nowrap { white-space: nowrap; }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-mono { font-family: var(--ff-mono); }
+.uppercase { text-transform: uppercase; }
+.tracking-wider { letter-spacing: 0.05em; }
+.w-10 { width: 40px; }
+.w-3\.5 { width: 14px; }
+.h-3\.5 { height: 14px; }
+.max-w-xs { max-width: 320px; }
+.py-8 { padding-top: var(--sp-8); padding-bottom: var(--sp-8); }
+.px-6 { padding-left: var(--sp-6); padding-right: var(--sp-6); }
+.py-3 { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+.py-4 { padding-top: var(--sp-4); padding-bottom: var(--sp-4); }
+.py-5 { padding-top: var(--sp-5); padding-bottom: var(--sp-5); }
+.py-6 { padding-top: var(--sp-6); padding-bottom: var(--sp-6); }
+.text-2xl { font-size: 22px; }
+.text-3xl { font-size: 28px; }
+.text-lg { font-size: 16px; }
+.text-md { font-size: 15px; }
+.text-xl { font-size: 18px; }
+.text-base { font-size: 14px; }
+.leading-6 { line-height: 1.6; }
+.col-span-3 { grid-column: span 3 / span 3; }
+.grid { display: grid; }
