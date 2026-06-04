@@ -33,6 +33,14 @@ const AI_DEFAULTS = {
   timeout: 60000,
 };
 
+/** 会话（多轮上下文）默认值 */
+const SESSION_DEFAULTS = {
+  enabled: true,
+  maxTurns: 5,
+  ttlMinutes: 5,
+  maxHistoryTokens: 2000,
+};
+
 /**
  * 从 config.json 文件加载并解析配置
  * 如果文件不存在则终止进程
@@ -47,12 +55,26 @@ function loadConfigFromFile() {
 }
 
 /**
+ * 合并对象与默认值（仅当原值未定义时填充默认值）
+ * @param {object} raw   原始配置
+ * @param {object} def   默认值
+ * @returns {object}
+ */
+function mergeDefaults(raw, def) {
+  const out = {};
+  for (const key of Object.keys(def)) {
+    out[key] = raw && raw[key] !== undefined ? raw[key] : def[key];
+  }
+  return out;
+}
+
+/**
  * 解析 AI 相关配置，合并环境变量覆盖与默认值
  * @param {object} config - 原始配置对象
  * @returns {object} 解析后的 AI 配置
  */
 function resolveAIConfig(config) {
-  const ai = config.ai || {};
+  const ai = (config && config.ai) || {};
 
   return {
     apiBase: process.env.AI_API_BASE || ai.apiBase,
@@ -71,6 +93,8 @@ function resolveAIConfig(config) {
     stream: ai.stream !== undefined ? ai.stream : AI_DEFAULTS.stream,
     responseFormat: ai.responseFormat !== undefined ? ai.responseFormat : AI_DEFAULTS.responseFormat,
     timeout: ai.timeout !== undefined ? ai.timeout : AI_DEFAULTS.timeout,
+    /** 多轮会话配置（用于服务端拼历史 + 命中 KV 缓存） */
+    session: mergeDefaults(ai.session || {}, SESSION_DEFAULTS),
   };
 }
 
