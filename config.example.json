@@ -16,6 +16,13 @@
     "seed": null,
     "stream": false,
     "responseFormat": null,
-    "timeout": 60000
+    "thinking": null,
+    "timeout": 60000,
+    "session": {
+      "enabled": true,
+      "maxTurns": 5,
+      "ttlMinutes": 5,
+      "maxHistoryTokens": 2000
+    }
   }
 }

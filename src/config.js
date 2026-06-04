@@ -26,11 +26,20 @@ const AI_DEFAULTS = {
   frequencyPenalty: 0,
   presencePenalty: 0,
   reasoningEffort: null,
+  thinking: null,
   stop: null,
   seed: null,
   stream: false,
   responseFormat: null,
   timeout: 60000,
+};
+
+/** 会话（多轮上下文）默认值 */
+const SESSION_DEFAULTS = {
+  enabled: true,
+  maxTurns: 5,
+  ttlMinutes: 5,
+  maxHistoryTokens: 2000,
 };
 
 /**
@@ -47,12 +56,26 @@ function loadConfigFromFile() {
 }
 
 /**
+ * 合并对象与默认值（仅当原值未定义时填充默认值）
+ * @param {object} raw   原始配置
+ * @param {object} def   默认值
+ * @returns {object}
+ */
+function mergeDefaults(raw, def) {
+  const out = {};
+  for (const key of Object.keys(def)) {
+    out[key] = raw && raw[key] !== undefined ? raw[key] : def[key];
+  }
+  return out;
+}
+
+/**
  * 解析 AI 相关配置，合并环境变量覆盖与默认值
  * @param {object} config - 原始配置对象
  * @returns {object} 解析后的 AI 配置
  */
 function resolveAIConfig(config) {
-  const ai = config.ai || {};
+  const ai = (config && config.ai) || {};
 
   return {
     apiBase: process.env.AI_API_BASE || ai.apiBase,
@@ -66,11 +89,14 @@ function resolveAIConfig(config) {
     frequencyPenalty: ai.frequencyPenalty !== undefined ? ai.frequencyPenalty : AI_DEFAULTS.frequencyPenalty,
     presencePenalty: ai.presencePenalty !== undefined ? ai.presencePenalty : AI_DEFAULTS.presencePenalty,
     reasoningEffort: ai.reasoningEffort !== undefined ? ai.reasoningEffort : AI_DEFAULTS.reasoningEffort,
+    thinking: ai.thinking !== undefined ? ai.thinking : AI_DEFAULTS.thinking,
     stop: ai.stop !== undefined ? ai.stop : AI_DEFAULTS.stop,
     seed: ai.seed !== undefined ? ai.seed : AI_DEFAULTS.seed,
     stream: ai.stream !== undefined ? ai.stream : AI_DEFAULTS.stream,
     responseFormat: ai.responseFormat !== undefined ? ai.responseFormat : AI_DEFAULTS.responseFormat,
     timeout: ai.timeout !== undefined ? ai.timeout : AI_DEFAULTS.timeout,
+    /** 多轮会话配置（用于服务端拼历史 + 命中 KV 缓存） */
+    session: mergeDefaults(ai.session || {}, SESSION_DEFAULTS),
   };
 }
 

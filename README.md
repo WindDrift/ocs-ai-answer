@@ -26,13 +26,15 @@
 ## 特性
 
 - **零依赖外部 API SDK** — 纯原生 Node.js `http`/`https` 模块请求，无需 `openai` 等额外依赖
-- **模块化架构** — 配置、日志、AI 调用、路由各司其职，便于维护和扩展
+- **模块化架构** — 配置、日志、AI 调用、路由、会话各司其职，便于维护和扩展
 - **配置文件驱动** — 所有 AI 参数集中在 `config.json` 中，修改无需动代码
 - **推理模型支持** — 支持 o1/o3 系列模型的 `reasoning_effort` 思考模式
 - **Docker 一键部署** — 提供 Dockerfile + docker-compose.yml，适配 1Panel 等面板
-- **Token 消耗可见** — 每次请求在控制台输出推理/总 token 消耗
+- **Token 消耗可见** — 每次请求在控制台输出推理/总 token 消耗和缓存命中率
 - **超时保护** — 可配置请求超时，避免无限等待
 - **Web 控制面板** — 内置 Vue 3 + Tailwind CSS 管理界面，支持在线修改配置和查看日志
+- **服务端多轮上下文** — 同会话内自动串联历史问答，提升准确度并命中 AI 端 KV 缓存
+- **课程上下文注入** — 同一门课/章节共享前缀，AI 响应更精准
 
 ## 快速开始
 
@@ -92,9 +94,10 @@ curl http://localhost:3000/api/status
     ├── app.js                 # Express 应用组装（中间件 + 路由挂载）
     ├── config.js              # 配置管理（加载 / 校验 / 热重载）
     ├── logger.js              # 内存日志管理（自动裁剪）
+    ├── session.js             # 多轮会话管理（TTL / 轮数 / token 预算）
     ├── ai.js                  # AI API 交互（请求构建 / 调用 / 响应解析）
     └── routes/                # 路由模块
-        ├── search.js          #   /search        答题查询接口
+        ├── search.js          #   /search        答题查询接口（支持多轮 + 课程上下文）
         ├── config.js          #   /api/config    配置读写接口
         ├── logs.js            #   /api/logs      日志查询接口
         ├── ocs.js             #   /api/ocs-config OCS 配置生成接口
@@ -109,8 +112,9 @@ curl http://localhost:3000/api/status
 | **应用组装** | `src/app.js` | 注册中间件、挂载路由模块、导出 Express 实例 |
 | **配置管理** | `src/config.js` | 从 `config.json` 加载配置，合并环境变量覆盖与默认值，支持热重载 |
 | **日志管理** | `src/logger.js` | 内存日志存储，自动裁剪超出上限的旧记录 |
-| **AI 调用** | `src/ai.js` | 构建 OpenAI 兼容请求体、发送 HTTP 请求、解析响应、记录 Token 消耗 |
-| **搜索路由** | `src/routes/search.js` | GET/POST `/search` 答题查询，统一参数提取与错误处理 |
+| **会话管理** | `src/session.js` | 多轮问答会话，按 sessionId 维护历史，TTL/轮数/token 预算可配 |
+| **AI 调用** | `src/ai.js` | 构建 OpenAI 兼容请求体、发送 HTTP 请求、解析响应、记录 Token 消耗与缓存命中 |
+| **搜索路由** | `src/routes/search.js` | GET/POST `/search` 答题查询，支持多轮上下文 + 课程上下文，DELETE `/search` 清空会话 |
 | **配置路由** | `src/routes/config.js` | GET/POST `/api/config` 配置读取与更新 |
 | **日志路由** | `src/routes/logs.js` | GET `/api/logs` 日志列表查询 |
 | **OCS 路由** | `src/routes/ocs.js` | GET `/api/ocs-config` 生成 OCS 题库配置 JSON |
@@ -139,7 +143,13 @@ curl http://localhost:3000/api/status
     "seed": null,
     "stream": false,
     "responseFormat": null,
-    "timeout": 60000
+    "timeout": 60000,
+    "session": {
+      "enabled": true,
+      "maxTurns": 5,
+      "ttlMinutes": 5,
+      "maxHistoryTokens": 2000
+    }
   }
 }
 ```
@@ -165,6 +175,10 @@ curl http://localhost:3000/api/status
 | `ai.stream` | boolean | `false` | 是否使用流式输出（当前不支持，保留字段） |
 | `ai.responseFormat` | object\|null | `null` | 输出格式约束，如 `{"type": "json_object"}` |
 | `ai.timeout` | number | `60000` | 请求超时时间（毫秒），推理模型建议 ≥ 120000 |
+| `ai.session.enabled` | boolean | `true` | 是否启用服务端多轮上下文 |
+| `ai.session.maxTurns` | number | `5` | 单个会话保留的最大对话轮数（1 轮 = 1 user + 1 assistant） |
+| `ai.session.ttlMinutes` | number | `5` | 会话空闲过期时间（分钟），超时后下次请求自动开新会话 |
+| `ai.session.maxHistoryTokens` | number | `2000` | 历史累计最大 token 预算（粗略按字符估算），超出后从最旧淘汰 |
 
 > 设置为 `null` 的配置项不会出现在实际 API 请求体中。
 
@@ -279,6 +293,8 @@ docker run -d \
 
 ## OCS 网课助手配置
 
+### 基础版（单轮）
+
 在 OCS 脚本的"题库配置"中填入：
 
 ```json
@@ -299,8 +315,59 @@ docker run -d \
 ]
 ```
 
+### 多轮 + 课程上下文版（推荐，命中率最高）
+
+```json
+[
+  {
+    "url": "http://你的IP:3000/search",
+    "name": "AI智能答题(多轮)",
+    "method": "get",
+    "contentType": "json",
+    "type": "GM_xmlhttpRequest",
+    "data": {
+      "title":   "${title}",
+      "type":    "${type}",
+      "options": "${options}",
+      "course":  "《计算机网络》第3章 数据链路层。本章重点：CSMA/CD、PPP协议、MAC地址、以太网帧结构。",
+      "session": "course-net-ch3"
+    },
+    "handler": "return (res) => res.code === 1 ? [res.question, res.answer] : [res.msg, undefined]"
+  }
+]
+```
+
+- `course`：把这门课/章节的关键背景告诉 AI，**该字段在同一 session 下保持完全相同**，AI 端会把它识别为公共前缀落盘。
+- `session`：会话 ID，建议按"课程-章节"命名（如 `course-net-ch3`）。切章节时改 `session` 即可隔离历史。
+- 不传 `session` 也能用，服务端会按 `IP + UA` 自动生成兜底 ID。
+
 > - 使用 `"type": "GM_xmlhttpRequest"` 支持跨域请求
 > - 在油猴脚本头部添加 `@connect 你的服务器IP` 或使用 [全域名通用版本](https://greasyfork.org/zh-CN/scripts/481438)
+> - 切换章节时如需手动重置会话，可调用 `DELETE /search?session=course-net-ch3`
+
+### 多轮机制与 KV 缓存
+
+服务侧按 `sessionId` 维度维护历史问答，拼成：
+
+```
+[system: 课程背景] [system: 角色 prompt] [user: Q1] [assistant: A1] ... [user: 当前题]
+```
+
+同一 session 内，第 2~N 题的 `[system + 历史]` 部分**前缀完全相同**，会**100% 命中 AI 端上下文硬盘缓存**：
+
+- 第 1 题：命中率 ≈ 0
+- 第 2~N 题：命中率 ≈ 100%（prompt 中除"当前题"外的所有 token 命中）
+
+控制台会输出每次请求的命中情况：
+
+```
+[session course-net-ch3] 第 3 轮 | 题目：CSMA/CD 的核心思想是？
+输入 Token：420（命中 380 / 未命中 40，命中率 90.5%）| 输出 Token：3 | 耗时：1.23 秒
+```
+
+空闲超过 `ttlMinutes`（默认 5 分钟）后下次请求自动开新会话。
+
+---
 
 ## API 接口
 
@@ -309,6 +376,7 @@ docker run -d \
 | `GET` | `/api/status` | 服务状态 |
 | `GET` | `/search?title=题目&type=类型&options=选项` | 查询答案 |
 | `POST` | `/search` | 查询答案（JSON body） |
+| `DELETE` | `/search?session=xxx` | 清空指定 session 的历史 |
 | `GET` | `/api/config` | 获取当前配置 |
 | `POST` | `/api/config` | 更新配置（热重载） |
 | `GET` | `/api/logs` | 获取请求日志 |
@@ -321,6 +389,8 @@ docker run -d \
 | `title` | 是 | 题目标题 |
 | `type` | 否 | 题目类型：`single` / `multiple` / `judgement` / `completion` |
 | `options` | 否 | 题目选项，每行一个 |
+| `course` | 否 | 课程/章节上下文（建议按章节固定一份） |
+| `session` | 否 | 会话 ID，缺省时按 IP+UA 自动生成 |
 
 ### 响应格式
 
