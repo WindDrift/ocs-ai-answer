@@ -79,6 +79,12 @@
     getProfileHistory() {
       return request("/api/config/profiles/history");
     },
+    upsertProfile(payload) {
+      return request("/api/config/profiles/upsert", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
   };
 
   global.API = API;
