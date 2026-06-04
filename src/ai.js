@@ -71,16 +71,22 @@ function buildRequestBody({ question, type, options, course, history }) {
   const body = {
     model: ai.model,
     messages,
-    temperature: ai.temperature,
   };
+
+  // DeepSeek 思考模式下不支持这些参数，需要排除
+  const isThinkingMode = ai.thinking && ai.thinking.type === "enabled";
+
+  if (!isThinkingMode) {
+    body.temperature = ai.temperature;
+  }
 
   /** 条件性参数：仅当值非 null/undefined 时加入请求体 */
   const optionalParams = {
-    top_p: ai.topP,
+    top_p: isThinkingMode ? undefined : ai.topP,
     max_completion_tokens: ai.maxCompletionTokens,
     max_tokens: ai.maxCompletionTokens ? undefined : ai.maxTokens,
-    frequency_penalty: ai.frequencyPenalty,
-    presence_penalty: ai.presencePenalty,
+    frequency_penalty: isThinkingMode ? undefined : ai.frequencyPenalty,
+    presence_penalty: isThinkingMode ? undefined : ai.presencePenalty,
     reasoning_effort: ai.reasoningEffort,
     stop: ai.stop,
     seed: ai.seed,
@@ -92,6 +98,13 @@ function buildRequestBody({ question, type, options, course, history }) {
     if (value !== null && value !== undefined) {
       body[key] = value;
     }
+  }
+
+  // DeepSeek 思考模式需要通过 extra_body 传递 thinking 参数
+  if (ai.thinking) {
+    body.extra_body = {
+      thinking: ai.thinking,
+    };
   }
 
   return JSON.stringify(body);

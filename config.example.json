@@ -16,6 +16,7 @@
     "seed": null,
     "stream": false,
     "responseFormat": null,
+    "thinking": null,
     "timeout": 60000,
     "session": {
       "enabled": true,
