@@ -199,6 +199,12 @@
       <!-- ============== 操作按钮 ============== -->
       <div class="form-actions">
         <button type="button" @click="onReset" class="btn-ghost">重置</button>
+        <button type="button" @click="onSaveToCurrent" :disabled="isSavingToProfile" class="btn-outline">
+          {{ isSavingToProfile ? '保存中…' : '保存到 ' + activeProfileName }}
+        </button>
+        <button type="button" @click="onOpenNewProfileDialog" :disabled="isSavingToProfile" class="btn-outline">
+          保存到新配置…
+        </button>
         <button type="submit" class="btn-primary">保存设置</button>
       </div>
     </form>
@@ -222,6 +228,57 @@
           <button type="button" @click="cancelSwitch" class="btn-ghost btn-sm">取消</button>
           <button type="button" @click="confirmSwitch" class="btn-primary btn-sm" :disabled="isSwitching">
             {{ isSwitching ? '切换中…' : '确认切换' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============== 新建配置档案弹窗 ============== -->
+  <transition name="fade">
+    <div v-if="showNewProfileDialog" class="switch-confirm-mask" @click.self="cancelNewProfileDialog">
+      <div class="switch-confirm-dialog" role="dialog" aria-modal="true">
+        <h4 class="switch-confirm-title">保存到新配置档案</h4>
+        <p class="switch-confirm-body">
+          将当前 AI 参数保存为一个新的档案，创建后将自动切换为激活状态。
+        </p>
+
+        <div class="form-cell" style="margin-top: 14px;">
+          <label class="form-label">
+            配置名称
+            <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            v-model="newProfileName"
+            @input="onNewProfileNameInput"
+            class="form-input"
+            placeholder="如：gpt-4o"
+            maxlength="40">
+          <p class="form-hint" v-if="newProfileNameError">{{ newProfileNameError }}</p>
+          <p class="form-hint form-hint-warn" v-else-if="isNewProfileNameDuplicated">
+            ⚠ 该名称已存在，提交后将覆盖现有档案的 AI 配置。
+          </p>
+        </div>
+
+        <div class="form-cell" style="margin-top: 12px;">
+          <label class="form-label">配置描述（选填）</label>
+          <input
+            type="text"
+            v-model="newProfileDescription"
+            class="form-input"
+            placeholder="如：OpenAI 高质量模型"
+            maxlength="80">
+        </div>
+
+        <div class="switch-confirm-actions">
+          <button type="button" @click="cancelNewProfileDialog" class="btn-ghost btn-sm">取消</button>
+          <button
+            type="button"
+            @click="confirmCreateNewProfile"
+            class="btn-primary btn-sm"
+            :disabled="!canCreateNewProfile || isSavingToProfile">
+            {{ isSavingToProfile ? '创建中…' : '创建并切换' }}
           </button>
         </div>
       </div>
@@ -255,7 +312,7 @@
       activeProfileName: { type: String, default: "default" },
       profileHistory: { type: Array, default: () => [] },
     },
-    emits: ["save", "reset", "switch-profile", "show-toast", "reload-config"],
+    emits: ["save", "reset", "switch-profile", "show-toast", "reload-config", "save-to-profile", "create-new-profile"],
     data() {
       return {
         selectedProvider: "__custom",
@@ -264,6 +321,12 @@
         isSwitching: false,
         showSwitchConfirm: false,
         hasUnsavedChanges: false,
+        // 新建档案弹窗
+        showNewProfileDialog: false,
+        newProfileName: "",
+        newProfileDescription: "",
+        isSavingToProfile: false,
+        newProfileNameError: "",
       };
     },
     computed: {
@@ -286,6 +349,17 @@
         if (this.selectedProfileName === this.activeProfileName) return false;
         if (!this.profiles.some((p) => p.name === this.selectedProfileName)) return false;
         return true;
+      },
+      /** 弹窗中名称是否与现有档案重复 */
+      isNewProfileNameDuplicated() {
+        const t = (this.newProfileName || "").trim();
+        if (!t) return false;
+        return this.profiles.some((p) => p.name === t);
+      },
+      /** 弹窗中"创建"按钮是否可点击 */
+      canCreateNewProfile() {
+        const t = (this.newProfileName || "").trim();
+        return t.length > 0;
       },
     },
     watch: {
@@ -390,6 +464,86 @@
         this.selectedProvider = "__custom";
         this.hasUnsavedChanges = false;
         this.$emit("reset");
+      },
+
+      /**
+       * "保存到 <activeProfileName>" 按钮：将当前 editConfig.ai 写入当前激活档案
+       */
+      onSaveToCurrent() {
+        if (this.isSavingToProfile) return;
+        const payload = this.buildAIUpsertPayload();
+        this.isSavingToProfile = true;
+        this.$emit("save-to-profile", payload, (success, msg) => {
+          this.isSavingToProfile = false;
+          if (success) {
+            this.hasUnsavedChanges = false;
+            this.$emit("show-toast", msg || "已保存", "success");
+            this.$emit("reload-config");
+          } else {
+            this.$emit("show-toast", msg || "保存失败", "error");
+          }
+        });
+      },
+
+      /**
+       * "保存到新配置" 按钮：打开弹窗
+       */
+      onOpenNewProfileDialog() {
+        if (this.isSavingToProfile) return;
+        this.newProfileName = "";
+        this.newProfileDescription = "";
+        this.newProfileNameError = "";
+        this.showNewProfileDialog = true;
+      },
+
+      cancelNewProfileDialog() {
+        if (this.isSavingToProfile) return;
+        this.showNewProfileDialog = false;
+      },
+
+      /**
+       * 弹窗内"创建并切换"按钮
+       */
+      confirmCreateNewProfile() {
+        if (this.isSavingToProfile) return;
+        const name = (this.newProfileName || "").trim();
+        if (!name) {
+          this.newProfileNameError = "请填写名称";
+          return;
+        }
+        this.newProfileNameError = "";
+        const description = (this.newProfileDescription || "").trim();
+        const payload = this.buildAIUpsertPayload();
+        this.isSavingToProfile = true;
+        this.$emit("create-new-profile", { name, description, ai: payload.ai }, (success, msg) => {
+          this.isSavingToProfile = false;
+          if (success) {
+            this.showNewProfileDialog = false;
+            this.hasUnsavedChanges = false;
+            this.$emit("show-toast", msg || "已创建并切换", "success");
+            this.$emit("reload-config");
+          } else {
+            this.$emit("show-toast", msg || "创建失败", "error");
+          }
+        });
+      },
+
+      /**
+       * 弹窗中名称输入框变化时清空错误提示
+       */
+      onNewProfileNameInput() {
+        if (this.newProfileNameError) this.newProfileNameError = "";
+      },
+
+      /**
+       * 构造 upsert 所需的 AI 配置对象（深拷贝 + 空值归一化）
+       */
+      buildAIUpsertPayload() {
+        const ai = JSON.parse(JSON.stringify(this.editConfig.ai || {}));
+        for (const k in ai) {
+          if (ai[k] === "") ai[k] = null;
+        }
+        return { ai };
       },
 
       /**

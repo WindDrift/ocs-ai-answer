@@ -14,6 +14,7 @@
  *   - window.API.getProfiles          GET  /api/config/profiles
  *   - window.API.switchProfile        POST /api/config/profiles/switch
  *   - window.API.getProfileHistory    GET  /api/config/profiles/history
+ *   - window.API.upsertProfile        POST /api/config/profiles/upsert
  */
 (function (global) {
   "use strict";

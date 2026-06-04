@@ -90,11 +90,19 @@ function mergeDefaults(raw, def) {
 
 /**
  * 解析 AI 相关配置，合并环境变量覆盖与默认值
+ * 当 config.ai 缺失时，从 activeProfile 对应档案读取
  * @param {object} config - 原始配置对象
  * @returns {object} 解析后的 AI 配置
  */
 function resolveAIConfig(config) {
-  const ai = (config && config.ai) || {};
+  let ai = (config && config.ai) || {};
+
+  // 根 ai 缺失：从 activeProfile 档案回退
+  if ((!ai || Object.keys(ai).length === 0) && Array.isArray(config && config.profiles) && config.profiles.length > 0) {
+    const active = typeof config.activeProfile === "string" ? config.activeProfile : "default";
+    const p = config.profiles.find((x) => x && x.name === active) || config.profiles[0];
+    if (p && p.ai) ai = p.ai;
+  }
 
   return {
     apiBase: process.env.AI_API_BASE || ai.apiBase,
@@ -239,6 +247,89 @@ class ConfigManager {
     this._aiConfig = resolveAIConfig(newRaw);
 
     return { ok: true, msg: "已切换到 " + name, from: fromName, to: name };
+  }
+
+  /**
+   * 获取指定档案
+   * @param {string} name
+   * @returns {object|null}
+   */
+  getProfile(name) {
+    if (!name || typeof name !== "string") return null;
+    return this._profiles.find((p) => p.name === name) || null;
+  }
+
+  /**
+   * 创建或更新档案（不修改当前激活档案与内存 AI 配置）
+   * @param {string} name - 档案名
+   * @param {object} ai - AI 配置对象
+   * @param {string} [description] - 档案描述
+   * @returns {{ok:boolean, msg:string, created?:boolean, profile?:object}}
+   */
+  upsertProfile(name, ai, description) {
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return { ok: false, msg: "缺少 name 参数" };
+    }
+    if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
+      return { ok: false, msg: "缺少 ai 配置" };
+    }
+    const trimmed = name.trim();
+
+    // 原子写入：备份现有 config.json，失败时回滚
+    const backupPath = CONFIG_PATH + ".bak";
+    const original = fs.readFileSync(CONFIG_PATH, "utf-8");
+    try {
+      fs.writeFileSync(backupPath, original, "utf-8");
+    } catch (_) {
+      // 备份失败不阻塞 upsert
+    }
+
+    const newRaw = JSON.parse(JSON.stringify(this._rawConfig));
+    const newProfiles = Array.isArray(newRaw.profiles) ? newRaw.profiles : [];
+    const idx = newProfiles.findIndex((p) => p && p.name === trimmed);
+    const newProfile = {
+      name: trimmed,
+      description: typeof description === "string" ? description : (newProfiles[idx] && newProfiles[idx].description) || "",
+      ai: JSON.parse(JSON.stringify(ai)),
+    };
+    let created;
+    if (idx >= 0) {
+      newProfiles[idx] = newProfile;
+      created = false;
+    } else {
+      newProfiles.push(newProfile);
+      created = true;
+    }
+    newRaw.profiles = newProfiles;
+    // 若激活档案就是被修改的档案，同步更新根 ai；否则保持根 ai 不变
+    if (newRaw.activeProfile === trimmed) {
+      newRaw.ai = JSON.parse(JSON.stringify(ai));
+    }
+
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newRaw, null, 2), "utf-8");
+    } catch (e) {
+      // 写文件失败：回滚到原内容
+      try {
+        fs.writeFileSync(CONFIG_PATH, original, "utf-8");
+      } catch (_) {}
+      return { ok: false, msg: "写入配置文件失败: " + e.message };
+    }
+
+    // 写文件成功：重新加载档案列表与 _rawConfig，但保持 _activeProfile / _aiConfig 不变
+    this._rawConfig = newRaw;
+    this._profiles = normalizeProfiles(newRaw);
+    // 若激活档案被修改的也是它，则用最新 ai 重算 _aiConfig；否则保持原 _aiConfig
+    if (newRaw.activeProfile === trimmed) {
+      this._aiConfig = resolveAIConfig(newRaw);
+    }
+
+    return {
+      ok: true,
+      msg: created ? "已创建档案 " + trimmed : "已更新档案 " + trimmed,
+      created,
+      profile: newProfile,
+    };
   }
 }
 

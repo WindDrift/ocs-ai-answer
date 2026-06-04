@@ -83,7 +83,9 @@
       @reset="fetchConfig"
       @switch-profile="handleSwitchProfile"
       @show-toast="showToast"
-      @reload-config="fetchConfig">
+      @reload-config="fetchConfig"
+      @save-to-profile="handleSaveToProfile"
+      @create-new-profile="handleCreateNewProfile">
     </settings-tab>
 
     <logs-tab
@@ -222,6 +224,11 @@
       };
 
       const saveConfig = async (payload) => {
+        // 档案模式（无根 ai 字段）：引导用户使用档案保存按钮
+        if (config.value && !config.value.ai) {
+          showToast("当前为档案模式，请使用上方档案保存按钮", "error");
+          return;
+        }
         const res = await API.saveConfig(payload);
         if (res.code === 1) {
           showToast("配置保存成功");
@@ -229,6 +236,50 @@
         } else {
           showToast(res.msg || "保存失败", "error");
         }
+      };
+
+      /**
+       * "保存到 <当前档案>" 处理：将当前 AI 参数 upsert 到 activeProfile 档案
+       * @param {{ai:object}} payload
+       * @param {(success:boolean, msg?:string) => void} cb
+       */
+      const handleSaveToProfile = async (payload, cb) => {
+        const targetName = activeProfileName.value || "default";
+        const res = await API.upsertProfile({
+          name: targetName,
+          ai: payload.ai,
+        });
+        if (res.code === 1) {
+          await fetchProfiles();
+          if (typeof cb === "function") cb(true, res.msg);
+        } else {
+          if (typeof cb === "function") cb(false, res.msg);
+        }
+      };
+
+      /**
+       * "保存到新配置" 处理：upsert 创建新档案 + 自动切换为激活
+       * @param {{name:string, description?:string, ai:object}} payload
+       * @param {(success:boolean, msg?:string) => void} cb
+       */
+      const handleCreateNewProfile = async (payload, cb) => {
+        const res = await API.upsertProfile({
+          name: payload.name,
+          ai: payload.ai,
+          description: payload.description,
+        });
+        if (res.code !== 1) {
+          if (typeof cb === "function") cb(false, res.msg);
+          return;
+        }
+        // 创建成功后自动切换为激活
+        const switchRes = await API.switchProfile(payload.name);
+        if (switchRes.code !== 1) {
+          if (typeof cb === "function") cb(false, switchRes.msg);
+          return;
+        }
+        await Promise.all([fetchProfiles(), fetchConfig()]);
+        if (typeof cb === "function") cb(true, switchRes.msg || res.msg);
       };
 
       const copyOcsConfig = async () => {
@@ -315,6 +366,8 @@
         fetchRangeStats,
         onChangeWindow,
         handleSwitchProfile,
+        handleSaveToProfile,
+        handleCreateNewProfile,
         showToast,
       };
     },

@@ -7,6 +7,7 @@
  *   GET  /api/config/profiles              - 获取档案列表 + 当前激活档案 + 切换历史
  *   POST /api/config/profiles/switch       - 切换到指定档案
  *   GET  /api/config/profiles/history      - 获取切换历史
+ *   POST /api/config/profiles/upsert       - 创建或更新档案（不动激活档案）
  */
 
 const express = require("express");
@@ -70,9 +71,38 @@ router.post("/profiles/switch", (req, res) => {
   return res.json({ code: 0, msg: result.msg });
 });
 
-/** GET /api/config/profiles/history - 返回倒序历史 */
+/**
+ * GET /api/config/profiles/history - 返回倒序历史 */
 router.get("/profiles/history", (req, res) => {
   res.json({ code: 1, data: profiles.getHistory() });
+});
+
+/**
+ * POST /api/config/profiles/upsert
+ * 请求体: { "name": "<档案名>", "ai": { ... }, "description"?: "<描述>" }
+ * 成功: { code: 1, msg: "已创建/已更新档案 <name>", data: { profile, created } }
+ * 失败: { code: 0, msg: "<原因>" } （400 表示参数错）
+ */
+router.post("/profiles/upsert", (req, res) => {
+  const body = req.body || {};
+  const name = body.name;
+  const ai = body.ai;
+  const description = body.description;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ code: 0, msg: "缺少 name 参数" });
+  }
+  if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
+    return res.status(400).json({ code: 0, msg: "缺少 ai 配置" });
+  }
+  const result = config.upsertProfile(name, ai, description);
+  if (!result.ok) {
+    return res.status(400).json({ code: 0, msg: result.msg });
+  }
+  res.json({
+    code: 1,
+    msg: result.msg,
+    data: { profile: result.profile, created: result.created },
+  });
 });
 
 module.exports = router;
