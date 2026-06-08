@@ -22,10 +22,10 @@ router.get("/", (req, res) => {
 });
 
 /** POST /api/config - 更新配置并热重载 */
-router.post("/", (req, res) => {
+router.post("/", async (req, res, next) => {
   try {
     const newConfig = req.body;
-    config.reload(newConfig);
+    await config.reload(newConfig);
     res.json({ code: 1, msg: "配置更新成功" });
   } catch (e) {
     res.json({ code: 0, msg: "配置更新失败: " + e.message });
@@ -53,12 +53,17 @@ router.get("/profiles", (req, res) => {
  * 成功: { code: 1, msg: "已切换到 <name>" }
  * 失败: { code: 0, msg: "<原因>" } （400 表示参数错）
  */
-router.post("/profiles/switch", (req, res) => {
+router.post("/profiles/switch", async (req, res, next) => {
   const name = req.body && req.body.name;
   if (!name || typeof name !== "string" || !name.trim()) {
     return res.status(400).json({ code: 0, msg: "缺少 name 参数" });
   }
-  const result = config.switchTo(name.trim());
+  let result;
+  try {
+    result = await config.switchTo(name.trim());
+  } catch (e) {
+    return res.json({ code: 0, msg: "切换失败: " + e.message });
+  }
   if (result.ok) {
     profiles.addHistory({ from: result.from, to: result.to, success: true });
     return res.json({ code: 1, msg: result.msg, data: { activeProfile: config.activeProfile } });
@@ -83,7 +88,7 @@ router.get("/profiles/history", (req, res) => {
  * 成功: { code: 1, msg: "已创建/已更新档案 <name>", data: { profile, created } }
  * 失败: { code: 0, msg: "<原因>" } （400 表示参数错）
  */
-router.post("/profiles/upsert", (req, res) => {
+router.post("/profiles/upsert", async (req, res, next) => {
   const body = req.body || {};
   const name = body.name;
   const ai = body.ai;
@@ -94,7 +99,12 @@ router.post("/profiles/upsert", (req, res) => {
   if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
     return res.status(400).json({ code: 0, msg: "缺少 ai 配置" });
   }
-  const result = config.upsertProfile(name, ai, description);
+  let result;
+  try {
+    result = await config.upsertProfile(name, ai, description);
+  } catch (e) {
+    return res.status(400).json({ code: 0, msg: "保存失败: " + e.message });
+  }
   if (!result.ok) {
     return res.status(400).json({ code: 0, msg: result.msg });
   }

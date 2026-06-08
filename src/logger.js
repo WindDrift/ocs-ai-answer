@@ -1,26 +1,27 @@
-const fs = require('fs');
-const path = require('path');
-
 /**
  * 日志管理模块
  *
- * 提供内存中的请求日志记录功能，支持：
- *   - 按时间倒序存储日志条目
- *   - 自动裁剪超出上限的旧日志
- *   - 获取全部日志列表
- *   - 持久化到本地文件
- *   - 按日期分组统计（用于"今日数据"板块）
- *   - 按时间窗口聚合统计（用于"近5分钟/30分钟/1小时/3小时/12小时/24小时"趋势）
+ * 提供：
+ *   - 业务请求日志（add / getAll / getTodayStats / getRangeStats），最大 200 条 + 异步批量落盘
+ *   - 统一日志门面（info / warn / error / debug），支持 LOG_LEVEL 环境变量
+ *   - 落盘采用环形 buffer + 1s / 20 条触发节流，避免高频写入
+ *   - 加载失败时将损坏文件改名 .broken-<ts>，避免下次启动继续抛错
  */
+
+const fs = require("fs");
+const fsp = fs.promises;
+const path = require("path");
 
 /** 日志最大保留条数 */
 const MAX_LOG_SIZE = 200;
-const LOG_FILE_PATH = path.join(__dirname, '..', 'logs.json');
+const LOG_FILE_PATH = path.join(__dirname, "..", "logs.json");
+
+/** 批量落盘配置 */
+const FLUSH_INTERVAL_MS = 1000; // 1 秒
+const FLUSH_BATCH_SIZE = 20; // 累计 20 条触发
 
 /**
- * 判定一条日志是否为"成功"（有 answer 且无 error）
- * @param {object} log
- * @returns {boolean}
+ * 判定一条业务日志是否为"成功"（有 answer 且无 error）
  */
 function isSuccessLog(log) {
   return !!(log && log.answer && !log.error);
@@ -28,82 +29,104 @@ function isSuccessLog(log) {
 
 /**
  * 解析日志时间戳为 Date 对象（兼容 ISO 字符串与毫秒数）
- * @param {string|number} time
- * @returns {Date}
  */
 function parseLogTime(time) {
   if (time instanceof Date) return time;
-  if (typeof time === 'number') return new Date(time);
+  if (typeof time === "number") return new Date(time);
   const d = new Date(time);
   return isNaN(d.getTime()) ? new Date() : d;
 }
 
 /**
  * 判断日志是否属于指定日期（按本地时区的 yyyy-mm-dd 比较）
- * @param {object} log
- * @param {string} dateStr  形如 "2026-06-04"
- * @returns {boolean}
  */
 function isSameLocalDate(log, dateStr) {
   const d = parseLogTime(log.time);
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}` === dateStr;
 }
 
 /**
  * 获取本地时区的 yyyy-mm-dd 字符串
- * @param {Date} [date]
- * @returns {string}
  */
 function getLocalDateStr(date = new Date()) {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 class LogManager {
   constructor() {
     /** @type {Array<object>} 日志列表（按时间倒序） */
     this._logs = [];
+    /** @type {boolean} 是否有未落盘的变更 */
+    this._dirty = false;
+    /** @type {NodeJS.Timeout|null} 定时落盘句柄 */
+    this._flushTimer = null;
     this._load();
+    this._startFlushTimer();
   }
 
-  /** 从文件加载日志 */
-  _load() {
+  /** 从文件加载日志；解析失败时改名 .broken-<ts>，不阻塞启动 */
+  async _load() {
     try {
       if (fs.existsSync(LOG_FILE_PATH)) {
-        const data = fs.readFileSync(LOG_FILE_PATH, 'utf8');
+        const data = await fsp.readFile(LOG_FILE_PATH, "utf8");
         this._logs = JSON.parse(data);
       }
     } catch (e) {
-      console.error('加载日志文件失败:', e.message);
+      console.error("[logger] 加载日志文件失败:", e.message);
       this._logs = [];
+      try {
+        const brokenPath = `${LOG_FILE_PATH}.broken-${Date.now()}`;
+        await fsp.rename(LOG_FILE_PATH, brokenPath);
+        console.error(`[logger] 已将损坏文件改名为 ${brokenPath}`);
+      } catch (_) {
+        // 改名也失败时，保留原文件
+      }
     }
   }
 
-  /** 保存日志到文件 */
-  _save() {
+  /** 立即落盘（供 SIGTERM 处理时调用） */
+  async flush() {
+    if (!this._dirty) return;
     try {
-      fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(this._logs, null, 2), 'utf8');
+      await fsp.writeFile(LOG_FILE_PATH, JSON.stringify(this._logs, null, 2), "utf8");
+      this._dirty = false;
     } catch (e) {
-      console.error('保存日志文件失败:', e.message);
+      console.error("[logger] 落盘失败:", e.message);
+    }
+  }
+
+  /** 启动定时器：每 FLUSH_INTERVAL_MS 检查一次是否需要落盘 */
+  _startFlushTimer() {
+    if (this._flushTimer) return;
+    this._flushTimer = setInterval(() => {
+      if (this._dirty) this.flush();
+    }, FLUSH_INTERVAL_MS);
+    // 进程退出时 unref，避免阻塞退出
+    if (this._flushTimer && typeof this._flushTimer.unref === "function") {
+      this._flushTimer.unref();
     }
   }
 
   /**
-   * 添加一条日志记录
-   * 新日志插入数组头部，超出上限时移除最旧的记录
-   * @param {object} log - 日志条目，通常包含 time, question, type, options, answer/error 等字段
+   * 添加一条业务日志
+   * 标记脏位并在达到批量阈值时立即 flush
    */
   add(log) {
     this._logs.unshift(log);
     if (this._logs.length > MAX_LOG_SIZE) {
-      this._logs.pop();
+      this._logs.length = MAX_LOG_SIZE;
     }
-    this._save();
+    this._dirty = true;
+    if (this._logs.length % FLUSH_BATCH_SIZE === 0) {
+      // 不阻塞调用方
+      this.flush();
+    }
   }
 
   /** 获取全部日志列表 */
@@ -112,24 +135,7 @@ class LogManager {
   }
 
   /**
-   * 聚合"今日"统计数据：请求数、Token、命中率、耗时等
-   * @param {string} [dateStr] 形如 "2026-06-04"，缺省为本地今天
-   * @returns {{
-   *   date: string,
-   *   requestCount: number,
-   *   successCount: number,
-   *   failedCount: number,
-   *   promptTokens: number,
-   *   cachedTokens: number,
-   *   completionTokens: number,
-   *   totalTokens: number,
-   *   cacheHitRate: number,        // 0~1
-   *   totalTimeMs: number,         // 所有请求耗时累加（毫秒）
-   *   averageInputTokens: number,  // 平均每题输入 token
-   *   averageOutputTokens: number, // 平均每题输出 token
-   *   averageTimeMs: number,       // 平均每题耗时（毫秒）
-   *   perHour: Array<{hour:number, count:number, totalTokens:number}>
-   * }}
+   * 聚合"今日"统计数据
    */
   getTodayStats(dateStr) {
     const target = dateStr || getLocalDateStr();
@@ -138,10 +144,10 @@ class LogManager {
 
     const sum = (arr, key) => arr.reduce((acc, x) => acc + (Number(x[key]) || 0), 0);
 
-    const promptTokens = sum(successLogs, 'promptTokens');
-    const cachedTokens = sum(successLogs, 'promptCacheHitTokens');
-    const completionTokens = sum(successLogs, 'completionTokens');
-    const totalTokens = sum(successLogs, 'totalTokens');
+    const promptTokens = sum(successLogs, "promptTokens");
+    const cachedTokens = sum(successLogs, "promptCacheHitTokens");
+    const completionTokens = sum(successLogs, "completionTokens");
+    const totalTokens = sum(successLogs, "totalTokens");
 
     const totalTimeMs = successLogs.reduce((acc, x) => {
       const t = parseFloat(x.timeElapsed);
@@ -186,27 +192,23 @@ class LogManager {
   }
 
   /**
-   * 时间窗口配置：key → { 总毫秒, 桶大小毫秒, 桶数, 标签, 桶标签格式化 }
-   * 桶标签格式：5min/30min/1h/3h/12h 使用 HH:MM；24h 使用 "HH时"
+   * 时间窗口配置
    */
   static get RANGE_WINDOWS() {
     const MIN = 60 * 1000;
     const HOUR = 60 * MIN;
     return {
-      "5m":  { ms: 5 * MIN,    bucketMs: 1 * MIN,  count: 5,  label: "5分钟",  short: "5min" },
-      "30m": { ms: 30 * MIN,   bucketMs: 5 * MIN,  count: 6,  label: "30分钟", short: "30min" },
-      "1h":  { ms: 1 * HOUR,   bucketMs: 5 * MIN,  count: 12, label: "1小时",  short: "1h" },
-      "3h":  { ms: 3 * HOUR,   bucketMs: 15 * MIN, count: 12, label: "3小时",  short: "3h" },
-      "12h": { ms: 12 * HOUR,  bucketMs: 30 * MIN, count: 24, label: "12小时", short: "12h" },
-      "24h": { ms: 24 * HOUR,  bucketMs: 1 * HOUR, count: 24, label: "24小时", short: "24h" },
+      "5m": { ms: 5 * MIN, bucketMs: 1 * MIN, count: 5, label: "5分钟", short: "5min" },
+      "30m": { ms: 30 * MIN, bucketMs: 5 * MIN, count: 6, label: "30分钟", short: "30min" },
+      "1h": { ms: 1 * HOUR, bucketMs: 5 * MIN, count: 12, label: "1小时", short: "1h" },
+      "3h": { ms: 3 * HOUR, bucketMs: 15 * MIN, count: 12, label: "3小时", short: "3h" },
+      "12h": { ms: 12 * HOUR, bucketMs: 30 * MIN, count: 24, label: "12小时", short: "12h" },
+      "24h": { ms: 24 * HOUR, bucketMs: 1 * HOUR, count: 24, label: "24小时", short: "24h" },
     };
   }
 
   /**
    * 格式化桶的开始时间为 X 轴标签
-   * @param {Date} d
-   * @param {string} key
-   * @returns {string}
    */
   _formatBucketLabel(d, key) {
     const hh = String(d.getHours()).padStart(2, "0");
@@ -217,8 +219,6 @@ class LogManager {
 
   /**
    * 聚合指定时间窗口内的统计数据
-   * @param {string} windowKey 形如 "5m" / "30m" / "1h" / "3h" / "12h" / "24h"
-   * @returns {object|null} 窗口统计
    */
   getRangeStats(windowKey) {
     const conf = LogManager.RANGE_WINDOWS[windowKey];
@@ -243,7 +243,11 @@ class LogManager {
     });
     const successInWindow = inWindow.filter(isSuccessLog);
 
-    let promptTokens = 0, cachedTokens = 0, completionTokens = 0, totalTokens = 0, totalTimeMs = 0;
+    let promptTokens = 0,
+      cachedTokens = 0,
+      completionTokens = 0,
+      totalTokens = 0,
+      totalTimeMs = 0;
     for (const log of successInWindow) {
       promptTokens += Number(log.promptTokens) || 0;
       cachedTokens += Number(log.promptCacheHitTokens) || 0;
@@ -294,7 +298,35 @@ class LogManager {
 }
 
 /** 单例导出 */
-module.exports = new LogManager();
+const logManager = new LogManager();
+
+/* ========== 统一日志门面（A8） ========== */
+
+const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
+const currentLevel = LEVELS[(process.env.LOG_LEVEL || "info").toLowerCase()] || LEVELS.info;
+
+function format(level, args) {
+  const ts = new Date().toISOString();
+  return [`[${ts}] [${level.toUpperCase()}]`, ...args];
+}
+
+const facade = {
+  debug: (...args) => {
+    if (currentLevel <= LEVELS.debug) console.log(...format("debug", args));
+  },
+  info: (...args) => {
+    if (currentLevel <= LEVELS.info) console.log(...format("info", args));
+  },
+  warn: (...args) => {
+    if (currentLevel <= LEVELS.warn) console.warn(...format("warn", args));
+  },
+  error: (...args) => {
+    if (currentLevel <= LEVELS.error) console.error(...format("error", args));
+  },
+};
+
+module.exports = logManager;
+module.exports.logger = facade;
 module.exports.isSuccessLog = isSuccessLog;
 module.exports.isSameLocalDate = isSameLocalDate;
 module.exports.getLocalDateStr = getLocalDateStr;

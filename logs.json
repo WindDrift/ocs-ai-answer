@@ -1,0 +1,42 @@
+[
+  {
+    "time": "2026-06-08T09:46:27.221Z",
+    "sessionId": "ip:ad324575cd84",
+    "turnIndex": 1,
+    "course": null,
+    "question": "t",
+    "type": "",
+    "options": "",
+    "error": ""
+  },
+  {
+    "time": "2026-06-08T09:44:12.054Z",
+    "sessionId": "ip:ad324575cd84",
+    "turnIndex": 1,
+    "course": null,
+    "question": "t",
+    "type": "",
+    "options": "",
+    "error": ""
+  },
+  {
+    "time": "2026-06-08T09:40:18.581Z",
+    "sessionId": "ip:ad324575cd84",
+    "turnIndex": 1,
+    "course": null,
+    "question": "test",
+    "type": "",
+    "options": "",
+    "error": ""
+  },
+  {
+    "time": "2026-06-08T09:38:03.413Z",
+    "sessionId": "ip:ad324575cd84",
+    "turnIndex": 1,
+    "course": null,
+    "question": "test",
+    "type": "",
+    "options": "",
+    "error": ""
+  }
+]

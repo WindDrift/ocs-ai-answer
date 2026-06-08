@@ -13,6 +13,11 @@
 
 const crypto = require("crypto");
 
+/** 启动后每 5 分钟节流跑一次 GC（避免每次 getOrCreate 都遍历） */
+const GC_INTERVAL_MS = 5 * 60 * 1000;
+/** GC 触发阈值：累计 getOrCreate 调用次数达到此值时也跑一次 */
+const GC_OP_THRESHOLD = 100;
+
 class SessionManager {
   /**
    * @param {object} opts
@@ -26,6 +31,18 @@ class SessionManager {
     this.maxTurns = maxTurns;
     this.ttlMs = ttlMs;
     this.maxTokens = maxTokens;
+    this._opCount = 0;
+    this._startGcTimer();
+  }
+
+  /**
+   * 配置变更时调用：更新各项限制（保留已有会话数据）
+   * @param {{maxTurns?:number, ttlMs?:number, maxTokens?:number}} opts
+   */
+  updateLimits({ maxTurns, ttlMs, maxTokens } = {}) {
+    if (typeof maxTurns === "number" && maxTurns > 0) this.maxTurns = maxTurns;
+    if (typeof ttlMs === "number" && ttlMs > 0) this.ttlMs = ttlMs;
+    if (typeof maxTokens === "number" && maxTokens > 0) this.maxTokens = maxTokens;
   }
 
   /** 用 IP + UA 派生兜底 sessionId（同源同网识别） */
@@ -46,7 +63,12 @@ class SessionManager {
     } else {
       s.lastActive = now;
     }
-    this.gc();
+    // 节流：累计调用数达阈值或距上次 GC 超过 GC_INTERVAL_MS 才执行
+    this._opCount++;
+    if (this._opCount >= GC_OP_THRESHOLD) {
+      this._opCount = 0;
+      this._gcIfDue();
+    }
     return s;
   }
 
@@ -92,11 +114,28 @@ class SessionManager {
     return Math.ceil(((text || "").length) / 2);
   }
 
+  /** 节流版 GC：仅在距上次 GC 超过 GC_INTERVAL_MS 时执行 */
+  _gcIfDue() {
+    const now = Date.now();
+    if (now - this._lastGc < GC_INTERVAL_MS) return;
+    this.gc();
+    this._lastGc = now;
+  }
+
   /** 清理长期不活跃的会话，防止内存泄漏 */
   gc() {
     const now = Date.now();
     for (const [id, s] of this.sessions) {
       if (now - s.lastActive > this.ttlMs * 2) this.sessions.delete(id);
+    }
+  }
+
+  /** 启动定时 GC，避免长跑后大量僵尸会话占内存 */
+  _startGcTimer() {
+    this._lastGc = Date.now();
+    this._gcTimer = setInterval(() => this.gc(), GC_INTERVAL_MS);
+    if (this._gcTimer && typeof this._gcTimer.unref === "function") {
+      this._gcTimer.unref();
     }
   }
 

@@ -1,16 +1,35 @@
 {
-  "name": "new",
+  "name": "ocs-ai-answer",
   "version": "1.0.0",
-  "description": "",
+  "description": "OCS AI 智能答题服务 - 基于 OpenAI 兼容 API 的本地答题网关，作为 OCS 网课助手的 AI 题库，支持多轮上下文、课程上下文注入、多配置档案与 Web 控制面板。",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint": "eslint \"src/**/*.js\" \"public/js/**/*.js\" \"server.js\"",
+    "lint:fix": "eslint --fix \"src/**/*.js\" \"public/js/**/*.js\" \"server.js\"",
+    "format": "prettier --write \"src/**/*.js\" \"public/js/**/*.js\" \"server.js\""
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ocs",
+    "ai",
+    "answer",
+    "openai",
+    "llm",
+    "exam",
+    "course-assistant"
+  ],
+  "author": "OCS AI Answer Contributors",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2"
   }
 }

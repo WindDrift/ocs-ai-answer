@@ -3,18 +3,19 @@
  *
  * 负责：
  *   - 整合 HomeTab / SettingsTab / LogsTab 三个页面
- *   - 调度 API 调用与状态管理
+ *   - 通过 composables（useConfig / useStats / useProfiles）管理 API 状态
  *   - 主题切换（深色/浅色）
  *   - Toast 通知
  *
  * 依赖（在 index.html 中按顺序加载）：
  *   window.Providers / window.AIParams / window.Stats / window.API / window.SvgChart
+ *   window.useConfig / window.useStats / window.useProfiles
  *   window.HomeTab / window.SettingsTab / window.LogsTab
  */
 (function (global) {
   "use strict";
 
-  const { createApp, ref, reactive, onMounted, watch, computed, provide } = Vue;
+  const { createApp, ref, reactive, onMounted, watch, computed } = Vue;
 
   const rootTemplate = /* html */ `
 <div v-cloak class="app-shell">
@@ -111,6 +112,7 @@
       LogsTab: global.LogsTab,
     },
     setup() {
+      /* ========== 状态定义 ========== */
       const currentTab = ref("home");
       const config = ref({});
       const editConfig = reactive({ ai: {} });
@@ -119,24 +121,21 @@
       const todayStats = ref(null);
       const rangeStats = ref(null);
       const timeWindow = ref("24h");
-      // 配置档案状态（由 fetchProfiles 填充）
       const profiles = ref([]);
       const activeProfileName = ref("default");
       const profileHistory = ref([]);
       const toast = reactive({ show: false, message: "", type: "success" });
       const isDarkMode = ref(false);
 
-      // 服务商信息
+      /* ========== 计算属性 ========== */
       const apiBase = computed(() => (config.value && config.value.ai && config.value.ai.apiBase) || "");
-      const providerName = computed(() => {
-        const det = Providers.detectProvider(apiBase.value);
-        return det.name;
-      });
+      const providerName = computed(() => Providers.detectProvider(apiBase.value).name);
       const providerColor = computed(() => {
         const det = Providers.detectProvider(apiBase.value);
         return det.provider ? det.provider.color : "#64748b";
       });
 
+      /* ========== 工具方法 ========== */
       const showToast = (message, type = "success") => {
         toast.message = message;
         toast.type = type;
@@ -145,149 +144,47 @@
         showToast._t = setTimeout(() => { toast.show = false; }, 3000);
       };
 
-      const fetchConfig = async () => {
-        const res = await API.getConfig();
-        if (res.code === 1) {
-          config.value = res.data;
-          // 深拷贝到 editConfig
-          const copy = JSON.parse(JSON.stringify(res.data));
-          Object.assign(editConfig, copy);
-          if (!editConfig.ai) editConfig.ai = {};
-          // 兜底默认字段
-          if (!("temperature" in editConfig.ai)) editConfig.ai.temperature = null;
-          if (!("topP" in editConfig.ai)) editConfig.ai.topP = null;
-        } else {
-          showToast("获取配置失败: " + (res.msg || ""), "error");
-        }
-      };
+      /* ========== composables 组合 ========== */
+      // useConfig: 配置读写
+      const { fetchConfig, saveConfig } = global.useConfig({ config, editConfig, showToast });
 
-      /**
-       * 拉取档案列表 + 当前激活 + 切换历史
-       * 与 fetchConfig 并行调用，不阻塞页面渲染
-       */
-      const fetchProfiles = async () => {
-        const res = await API.getProfiles();
-        if (res.code === 1 && res.data) {
-          profiles.value = res.data.profiles || [];
-          activeProfileName.value = res.data.activeProfile || "default";
-          profileHistory.value = res.data.history || [];
-        }
-      };
+      // useStats: 统计 / 日志 / OCS 配置
+      const {
+        fetchLogs,
+        fetchTodayStats,
+        fetchRangeStats,
+        onChangeWindow,
+        fetchOcsConfig,
+      } = global.useStats({ logs, todayStats, rangeStats, ocsConfigStr, timeWindow });
 
-      /**
-       * 切换配置档案：调后端接口，成功后双源刷新（档案+配置）
-       * 回调 cb(success, msg) 由 SettingsTab 传入，用于关闭确认弹窗
-       */
-      const handleSwitchProfile = async (name, cb) => {
-        const res = await API.switchProfile(name);
-        if (res.code === 1) {
-          // 切换成功：刷新档案列表（含新历史）+ 主配置 + OCS 配置
-          await Promise.all([fetchProfiles(), fetchConfig(), fetchOcsConfig()]);
-          if (typeof cb === "function") cb(true, res.msg);
-        } else {
-          if (typeof cb === "function") cb(false, res.msg);
-        }
+      // useProfiles: 档案拉取 / 切换 / 保存 / 创建
+      // 切换或创建档案成功后，需要刷新配置 + OCS 配置
+      const onProfileChanged = async () => {
+        await Promise.all([fetchConfig(), fetchOcsConfig()]);
       };
+      const {
+        fetchProfiles,
+        switchProfile,
+        saveToProfile,
+        createNewProfile,
+      } = global.useProfiles({
+        profiles,
+        activeProfileName,
+        profileHistory,
+        onAfterChange: onProfileChanged,
+      });
 
-      const fetchOcsConfig = async () => {
-        const res = await API.getOcsConfig();
-        if (res.code === 1) {
-          ocsConfigStr.value = JSON.stringify(res.data, null, 2);
-        }
-      };
+      // 包装：把 composable 的方法暴露为命名 handler 供模板调用
+      const handleSwitchProfile = (name, cb) => switchProfile(name, cb);
+      const handleSaveToProfile = (payload, cb) => saveToProfile(payload, cb);
+      const handleCreateNewProfile = (payload, cb) => createNewProfile(payload, cb);
 
-      const fetchLogs = async () => {
-        const res = await API.getLogs();
-        if (res.code === 1) {
-          logs.value = res.data || [];
-        }
-      };
-
-      const fetchTodayStats = async () => {
-        const res = await API.getTodayStats();
-        if (res.code === 1) {
-          todayStats.value = Stats.formatToday(res.data);
-        }
-      };
-
-      const fetchRangeStats = async (window) => {
-        const key = window || timeWindow.value || "24h";
-        const res = await API.getRangeStats(key);
-        if (res.code === 1) {
-          rangeStats.value = Stats.formatRange(res.data);
-        }
-      };
-
-      const onChangeWindow = (window) => {
-        timeWindow.value = window;
-        fetchRangeStats(window);
-      };
-
-      const saveConfig = async (payload) => {
-        // 档案模式（无根 ai 字段）：引导用户使用档案保存按钮
-        if (config.value && !config.value.ai) {
-          showToast("当前为档案模式，请使用上方档案保存按钮", "error");
-          return;
-        }
-        const res = await API.saveConfig(payload);
-        if (res.code === 1) {
-          showToast("配置保存成功");
-          await fetchConfig();
-        } else {
-          showToast(res.msg || "保存失败", "error");
-        }
-      };
-
-      /**
-       * "保存到 <当前档案>" 处理：将当前 AI 参数 upsert 到 activeProfile 档案
-       * @param {{ai:object}} payload
-       * @param {(success:boolean, msg?:string) => void} cb
-       */
-      const handleSaveToProfile = async (payload, cb) => {
-        const targetName = activeProfileName.value || "default";
-        const res = await API.upsertProfile({
-          name: targetName,
-          ai: payload.ai,
-        });
-        if (res.code === 1) {
-          await fetchProfiles();
-          if (typeof cb === "function") cb(true, res.msg);
-        } else {
-          if (typeof cb === "function") cb(false, res.msg);
-        }
-      };
-
-      /**
-       * "保存到新配置" 处理：upsert 创建新档案 + 自动切换为激活
-       * @param {{name:string, description?:string, ai:object}} payload
-       * @param {(success:boolean, msg?:string) => void} cb
-       */
-      const handleCreateNewProfile = async (payload, cb) => {
-        const res = await API.upsertProfile({
-          name: payload.name,
-          ai: payload.ai,
-          description: payload.description,
-        });
-        if (res.code !== 1) {
-          if (typeof cb === "function") cb(false, res.msg);
-          return;
-        }
-        // 创建成功后自动切换为激活
-        const switchRes = await API.switchProfile(payload.name);
-        if (switchRes.code !== 1) {
-          if (typeof cb === "function") cb(false, switchRes.msg);
-          return;
-        }
-        await Promise.all([fetchProfiles(), fetchConfig()]);
-        if (typeof cb === "function") cb(true, switchRes.msg || res.msg);
-      };
-
+      /* ========== 剪贴板 / 主题 ========== */
       const copyOcsConfig = async () => {
         try {
           await navigator.clipboard.writeText(ocsConfigStr.value);
           showToast("配置已复制到剪贴板");
         } catch (_) {
-          // 兜底：使用 textarea + execCommand
           const ta = document.createElement("textarea");
           ta.value = ocsConfigStr.value;
           document.body.appendChild(ta);
@@ -322,18 +219,22 @@
         }
       };
 
+      /* ========== 启动 ========== */
       onMounted(() => {
         initTheme();
-        // 并行拉取配置与档案列表，提升首屏速度
-        Promise.all([fetchConfig(), fetchOcsConfig(), fetchLogs(), fetchProfiles(), fetchTodayStats(), fetchRangeStats()]);
+        Promise.all([
+          fetchConfig(),
+          fetchOcsConfig(),
+          fetchLogs(),
+          fetchProfiles(),
+          fetchTodayStats(),
+          fetchRangeStats(),
+        ]);
 
-        // 定时刷新日志（仅在 logs tab 时刷新）+ 今日数据
+        // 定时刷新：仅在当前 tab 需要时拉取，切到非活动 tab 暂停
         setInterval(() => {
-          if (currentTab.value === "logs") {
-            fetchLogs();
-          }
-          // 今日数据每 10 秒刷新一次
-          if (Date.now() % 10000 < 5000) {
+          if (currentTab.value === "logs") fetchLogs();
+          if (currentTab.value === "home") {
             fetchTodayStats();
             fetchRangeStats();
           }

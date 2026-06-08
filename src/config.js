@@ -12,10 +12,13 @@
  */
 
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 
 /** 配置文件路径 */
 const CONFIG_PATH = path.join(__dirname, "..", "config.json");
+/** 配置文件权限：仅当前用户可读写 */
+const CONFIG_MODE = 0o600;
 
 /** AI 参数默认值映射表 */
 const AI_DEFAULTS = {
@@ -127,6 +130,39 @@ function resolveAIConfig(config) {
   };
 }
 
+/**
+ * 原子写配置：先备份再写入，失败时回滚
+ * @param {object} newRaw 新的完整配置对象
+ * @returns {Promise<void>}
+ */
+async function writeConfigAtomic(newRaw) {
+  const backupPath = CONFIG_PATH + ".bak";
+  let original = null;
+  try {
+    original = await fsp.readFile(CONFIG_PATH, "utf-8");
+    await fsp.writeFile(backupPath, original, "utf-8");
+  } catch (_) {
+    // 备份失败不阻塞主流程
+  }
+
+  try {
+    await fsp.writeFile(CONFIG_PATH, JSON.stringify(newRaw, null, 2), "utf-8");
+    try {
+      await fsp.chmod(CONFIG_PATH, CONFIG_MODE);
+    } catch (_) {
+      // 平台不支持或权限不足时忽略
+    }
+  } catch (e) {
+    // 写文件失败：尝试回滚
+    if (original !== null) {
+      try {
+        await fsp.writeFile(CONFIG_PATH, original, "utf-8");
+      } catch (_) {}
+    }
+    throw new Error("写入配置文件失败: " + e.message);
+  }
+}
+
 class ConfigManager {
   constructor() {
     /** @type {object} 原始配置（来自文件） */
@@ -137,6 +173,8 @@ class ConfigManager {
     this._activeProfile = this._resolveActiveProfile();
     /** @type {object} 解析后的 AI 配置 */
     this._aiConfig = resolveAIConfig(this._rawConfig);
+    /** @type {Array<Function>} 配置变更订阅者列表（用于联动 SessionManager 等） */
+    this._subscribers = [];
   }
 
   /**
@@ -150,6 +188,22 @@ class ConfigManager {
       if (exists) return declared;
     }
     return "default";
+  }
+
+  /** 注册配置变更订阅者（reload / switchTo / upsertProfile 后会回调） */
+  onChange(fn) {
+    if (typeof fn === "function") this._subscribers.push(fn);
+  }
+
+  /** 通知所有订阅者 */
+  _notifyChange() {
+    for (const fn of this._subscribers) {
+      try {
+        fn();
+      } catch (e) {
+        console.error("配置变更订阅者回调失败:", e && e.message);
+      }
+    }
   }
 
   /** 获取服务端口（环境变量 PORT 优先） */
@@ -186,20 +240,21 @@ class ConfigManager {
    * 热重载配置：将新配置写入文件并更新内存中的运行时配置
    * @param {object} newConfig - 新的配置对象
    */
-  reload(newConfig) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), "utf-8");
+  async reload(newConfig) {
+    await writeConfigAtomic(newConfig);
     this._rawConfig = newConfig;
     this._profiles = normalizeProfiles(newConfig);
     this._activeProfile = this._resolveActiveProfile();
     this._aiConfig = resolveAIConfig(newConfig);
+    this._notifyChange();
   }
 
   /**
    * 切换到指定档案：将 ai 字段替换为目标档案的 ai 配置，并持久化到文件
    * @param {string} name - 目标档案名
-   * @returns {{ok:boolean, msg:string, from?:string, to?:string}}
+   * @returns {Promise<{ok:boolean, msg:string, from?:string, to?:string}>}
    */
-  switchTo(name) {
+  async switchTo(name) {
     if (!name || typeof name !== "string") {
       return { ok: false, msg: "缺少 name 参数" };
     }
@@ -212,39 +267,23 @@ class ConfigManager {
       return { ok: false, msg: "当前已是该档案: " + name };
     }
 
-    // 原子写入：先备份现有 config.json，失败时回滚
-    const backupPath = CONFIG_PATH + ".bak";
-    const original = fs.readFileSync(CONFIG_PATH, "utf-8");
-    try {
-      fs.writeFileSync(backupPath, original, "utf-8");
-    } catch (_) {
-      // 备份失败不阻塞切换
-    }
-
-    const newRaw = JSON.parse(JSON.stringify(this._rawConfig));
-    newRaw.ai = JSON.parse(JSON.stringify(target.ai || {}));
+    const newRaw = structuredClone(this._rawConfig);
+    newRaw.ai = structuredClone(target.ai || {});
     newRaw.activeProfile = name;
     // 同步档案列表：保持用户定义的 profiles 完整
     newRaw.profiles = this._profiles.map((p) => ({
       name: p.name,
       description: p.description,
-      ai: p.ai,
+      ai: structuredClone(p.ai || {}),
     }));
 
-    try {
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newRaw, null, 2), "utf-8");
-    } catch (e) {
-      // 写文件失败：回滚到原内容
-      try {
-        fs.writeFileSync(CONFIG_PATH, original, "utf-8");
-      } catch (_) {}
-      return { ok: false, msg: "写入配置文件失败: " + e.message };
-    }
+    await writeConfigAtomic(newRaw);
 
     // 写文件成功，更新内存
     this._rawConfig = newRaw;
     this._activeProfile = name;
     this._aiConfig = resolveAIConfig(newRaw);
+    this._notifyChange();
 
     return { ok: true, msg: "已切换到 " + name, from: fromName, to: name };
   }
@@ -264,9 +303,9 @@ class ConfigManager {
    * @param {string} name - 档案名
    * @param {object} ai - AI 配置对象
    * @param {string} [description] - 档案描述
-   * @returns {{ok:boolean, msg:string, created?:boolean, profile?:object}}
+   * @returns {Promise<{ok:boolean, msg:string, created?:boolean, profile?:object}>}
    */
-  upsertProfile(name, ai, description) {
+  async upsertProfile(name, ai, description) {
     if (!name || typeof name !== "string" || !name.trim()) {
       return { ok: false, msg: "缺少 name 参数" };
     }
@@ -275,22 +314,13 @@ class ConfigManager {
     }
     const trimmed = name.trim();
 
-    // 原子写入：备份现有 config.json，失败时回滚
-    const backupPath = CONFIG_PATH + ".bak";
-    const original = fs.readFileSync(CONFIG_PATH, "utf-8");
-    try {
-      fs.writeFileSync(backupPath, original, "utf-8");
-    } catch (_) {
-      // 备份失败不阻塞 upsert
-    }
-
-    const newRaw = JSON.parse(JSON.stringify(this._rawConfig));
+    const newRaw = structuredClone(this._rawConfig);
     const newProfiles = Array.isArray(newRaw.profiles) ? newRaw.profiles : [];
     const idx = newProfiles.findIndex((p) => p && p.name === trimmed);
     const newProfile = {
       name: trimmed,
       description: typeof description === "string" ? description : (newProfiles[idx] && newProfiles[idx].description) || "",
-      ai: JSON.parse(JSON.stringify(ai)),
+      ai: structuredClone(ai),
     };
     let created;
     if (idx >= 0) {
@@ -303,18 +333,10 @@ class ConfigManager {
     newRaw.profiles = newProfiles;
     // 若激活档案就是被修改的档案，同步更新根 ai；否则保持根 ai 不变
     if (newRaw.activeProfile === trimmed) {
-      newRaw.ai = JSON.parse(JSON.stringify(ai));
+      newRaw.ai = structuredClone(ai);
     }
 
-    try {
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newRaw, null, 2), "utf-8");
-    } catch (e) {
-      // 写文件失败：回滚到原内容
-      try {
-        fs.writeFileSync(CONFIG_PATH, original, "utf-8");
-      } catch (_) {}
-      return { ok: false, msg: "写入配置文件失败: " + e.message };
-    }
+    await writeConfigAtomic(newRaw);
 
     // 写文件成功：重新加载档案列表与 _rawConfig，但保持 _activeProfile / _aiConfig 不变
     this._rawConfig = newRaw;
@@ -323,6 +345,7 @@ class ConfigManager {
     if (newRaw.activeProfile === trimmed) {
       this._aiConfig = resolveAIConfig(newRaw);
     }
+    this._notifyChange();
 
     return {
       ok: true,

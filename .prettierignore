@@ -1,0 +1,12 @@
+node_modules/
+config.json
+logs.json
+logs.json.broken-*
+config.json.bak
+config.audit.log
+public/
+test/
+.DS_Store
+.tra/
+*.log
+eslint.config.js
